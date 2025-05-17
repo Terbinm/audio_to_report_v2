@@ -2,7 +2,7 @@
 資料庫模型
 定義系統中所需的各種數據模型
 """
-from app import db
+from extensions import db
 from datetime import datetime
 import enum
 

@@ -3,9 +3,8 @@
 定義用戶相關的數據庫模型
 """
 from flask_login import UserMixin
-from app import db
 from datetime import datetime
-
+from extensions import db
 
 class User(UserMixin, db.Model):
     """用戶模型，用於認證和用戶管理"""

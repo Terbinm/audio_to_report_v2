@@ -3,16 +3,13 @@ Flask 應用入口點
 初始化 Flask 應用，設定藍圖 (Blueprints)，配置基本設定
 """
 from flask import Flask, redirect, url_for
-from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, current_user
-from flask_migrate import Migrate
 import os
 from pathlib import Path
 import datetime
 
-# 初始化 SQLAlchemy，稍後連接到 app
-db = SQLAlchemy()
-migrate = Migrate()
+# 從共享模組導入 db 和 migrate
+from extensions import db, migrate
 
 
 def create_app(test_config=None):
@@ -57,7 +54,6 @@ def create_app(test_config=None):
         return User.query.get(int(user_id))
 
     # 註冊藍圖
-
     # 註冊認證藍圖
     from auth import auth as auth_blueprint
     app.register_blueprint(auth_blueprint)
