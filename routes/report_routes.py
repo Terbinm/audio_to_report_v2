@@ -3,6 +3,7 @@
 處理報告生成、編輯和下載功能
 """
 import json
+import queue
 import time
 
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app, \
@@ -257,35 +258,44 @@ def stream_report(report_id):
     report_entry = Report.query.filter_by(id=report_id, user_id=current_user.id).first_or_404()
 
     # 創建報告生成器 (但不啟動生成)
+    app = current_app._get_current_object()  # 獲取實際的應用對象，避免上下文問題
     generator = create_report_generator(report_id)
 
     def generate_events():
         """生成 SSE 事件"""
-        while True:
-            # 嘗試獲取一條訊息
-            message = generator.get_messages(timeout=0.1)
+        # 使用應用上下文
+        with app.app_context():
+            while True:
+                try:
+                    # 嘗試獲取一條訊息
+                    message = generator.get_messages(timeout=0.1)
 
-            if message:
-                # 將消息格式化為 SSE 事件
-                yield f"data: {json.dumps({'chunk': message})}\n\n"
-            elif report_entry.status == ReportStatus.COMPLETED:
-                # 如果報告已完成生成，發送結束事件
-                yield "event: done\ndata: done\n\n"
-                break
-            elif report_entry.status == ReportStatus.FAILED:
-                # 如果報告生成失敗，發送錯誤事件
-                yield f"event: error\ndata: {report_entry.error_message}\n\n"
-                break
-            else:
-                # 保持連接活躍
-                yield f"data: {json.dumps({'heartbeat': True})}\n\n"
+                    if message:
+                        # 將消息格式化為 SSE 事件
+                        yield f"data: {json.dumps({'chunk': message})}\n\n"
+                        logger.info(f"發送內容片段：{message[:20] if message else 'None'}...")
+                    elif report_entry.status == ReportStatus.COMPLETED:
+                        # 如果報告已完成生成，發送結束事件
+                        yield "event: done\ndata: done\n\n"
+                        break
+                    elif report_entry.status == ReportStatus.FAILED:
+                        # 如果報告生成失敗，發送錯誤事件
+                        yield f"event: error\ndata: {report_entry.error_message}\n\n"
+                        break
+                    else:
+                        # 保持連接活躍
+                        yield f"data: {json.dumps({'heartbeat': True})}\n\n"
 
-            # 暫停一小段時間，避免過於頻繁的檢查
-            time.sleep(0.2)
+                except Exception as e:
+                    logger.error(f"生成事件時發生錯誤: {e}")
+                    yield f"event: error\ndata: 生成事件時發生錯誤: {str(e)}\n\n"
+                    break
+
+                # 暫停一小段時間，避免過於頻繁的檢查
+                time.sleep(0.2)
 
     # 返回串流響應
     return Response(generate_events(), mimetype='text/event-stream')
-
 
 @report.route('/reports')
 @login_required

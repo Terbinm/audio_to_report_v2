@@ -112,8 +112,17 @@ class ReportGenerator:
         if debug_dir:
             os.makedirs(debug_dir, exist_ok=True)
 
-        # 設定進度訊息佇列和結果
-        self.message_queue = queue.Queue()
+        # 使用全局命名的隊列，確保跨進程共享
+        self.message_queue_name = f"report_queue_{report_id}"
+
+        # 檢查是否已存在全局隊列，如果不存在則創建
+        if not hasattr(current_app, self.message_queue_name):
+            setattr(current_app, self.message_queue_name, queue.Queue())
+
+        # 獲取全局隊列
+        self.message_queue = getattr(current_app, self.message_queue_name)
+
+        # 結果內容
         self.result_content = ""
 
         # 設定 Ollama 連接資訊
@@ -345,8 +354,12 @@ class ReportGenerator:
                                 chunk = json_line["response"]
                                 content += chunk
 
-                                # 更新訊息佇列，用於實時串流到前端
-                                self.message_queue.put(chunk)
+                                # 確保使用正確的全局隊列
+                                queue_to_use = getattr(current_app, self.message_queue_name, self.message_queue)
+                                queue_to_use.put(chunk)
+
+                                # 調試輸出
+                                logger.debug(f"添加到隊列: {chunk}")
 
                                 # 更新 token 計數和進度
                                 tokens_received += 1
@@ -392,7 +405,7 @@ class ReportGenerator:
             logger.error(f"生成報告內容時發生錯誤: {e}")
             raise ReportGeneratorException(f"生成報告內容時發生錯誤: {e}")
 
-    def get_messages(self, timeout=0.1):
+    def get_messages(self, timeout=0.5):
         """
         從消息隊列中獲取一條生成消息
 
@@ -403,8 +416,10 @@ class ReportGenerator:
             獲取到的消息，如果隊列為空則返回 None
         """
         try:
-            return self.message_queue.get(timeout=timeout)
-        except queue.Empty:
+            # 確保使用正確的全局隊列
+            queue_to_use = getattr(current_app, self.message_queue_name, self.message_queue)
+            return queue_to_use.get(block=False)  # 嘗試非阻塞獲取
+        except (queue.Empty, AttributeError):
             return None
 
     def _save_report(self, content):

@@ -1,6 +1,6 @@
 """
 生成進度頁面 (generating.html)
-實現 LLM 生成內容的實時顯示
+實現 LLM 生成內容的實時顯示3
 """
 
 {% extends "base.html" %}
@@ -143,29 +143,42 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // 只有在狀態不是已完成或失敗時才設置 EventSource
     if (initialStatus !== 'completed' && initialStatus !== 'failed') {
-        // 建立 SSE 連接
+        // 使用 SSE 獲取生成內容
         const evtSource = new EventSource(`/stream/${reportId}`);
 
         // 監聽一般消息事件
         evtSource.onmessage = function(event) {
+            console.log("收到原始事件數據:", event.data); // 添加原始事件數據日誌
+
             try {
                 const data = JSON.parse(event.data);
 
                 // 處理心跳
                 if (data.heartbeat) {
+                    console.log("收到心跳");
                     return;
                 }
 
                 // 處理生成的內容片段
                 if (data.chunk) {
+                    console.log("收到內容片段:", data.chunk); // 記錄接收到的片段
+
                     // 添加到內容並更新顯示
                     generatedContent += data.chunk;
                     updateContent();
+
+                    // 滾動到底部
+                    const container = document.querySelector('.stream-container');
+                    if (container) {
+                        container.scrollTop = container.scrollHeight;
+                    }
                 }
             } catch (err) {
-                console.error('處理事件數據時出錯:', err);
+                console.error("處理事件數據時出錯:", err, event.data);
             }
         };
+
+
 
         // 處理完成事件
         evtSource.addEventListener('done', function(e) {
