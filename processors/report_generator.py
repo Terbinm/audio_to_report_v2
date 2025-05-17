@@ -405,7 +405,7 @@ class ReportGenerator:
             logger.error(f"生成報告內容時發生錯誤: {e}")
             raise ReportGeneratorException(f"生成報告內容時發生錯誤: {e}")
 
-    def get_messages(self, timeout=0.5):
+    def get_messages(self, timeout=0.1):
         """
         從消息隊列中獲取一條生成消息
 
