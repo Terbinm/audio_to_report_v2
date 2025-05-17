@@ -41,7 +41,7 @@
             <div class="card-body">
                 <!-- 報告內容 -->
                 <div class="markdown-body">
-                    {{ markdown_content | markdown }}
+                    {{ markdown_content | markdown | safe }}
                 </div>
             </div>
             <div class="card-footer text-muted">
@@ -159,5 +159,4 @@
 
 {% block extra_js %}
 <script src="{{ url_for('static', filename='js/report.js') }}"></script>
-<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 {% endblock %}

@@ -1,10 +1,486 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Title</title>
-</head>
-<body>
+{% extends "base.html" %}
 
-</body>
-</html>
+{% block title %}編輯報告 - {{ config.SITE_TITLE }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/report.css') }}">
+<!-- Markdown CSS -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/github-markdown-css@5.2.0/github-markdown.min.css">
+<style>
+    .markdown-editor {
+        height: 70vh;
+        min-height: 500px;
+        font-family: monospace;
+        resize: vertical;
+        line-height: 1.5;
+    }
+
+    .preview-container {
+        height: 70vh;
+        min-height: 500px;
+        overflow-y: auto;
+        border: 1px solid #dee2e6;
+        border-radius: 0.25rem;
+        padding: 1rem;
+    }
+
+    .nav-pills .nav-link {
+        padding: 0.5rem 1rem;
+        margin-right: 5px;
+        border-radius: 0.25rem;
+    }
+
+    .nav-pills .nav-link.active {
+        background-color: #0d6efd;
+        color: white;
+    }
+
+    .editor-toolbar {
+        padding: 0.5rem;
+        background-color: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-bottom: none;
+        border-radius: 0.25rem 0.25rem 0 0;
+    }
+
+    .editor-toolbar .btn {
+        padding: 0.25rem 0.5rem;
+    }
+
+    .markdown-hints {
+        background-color: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 0.25rem;
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .markdown-hints code {
+        background-color: #e9ecef;
+        padding: 0.2rem 0.4rem;
+        border-radius: 0.2rem;
+    }
+
+    .split-view-container {
+        display: flex;
+        gap: 1rem;
+    }
+
+    .split-editor {
+        width: 50%;
+        height: 70vh;
+        min-height: 500px;
+    }
+
+    .split-preview {
+        width: 50%;
+        height: 70vh;
+        min-height: 500px;
+        overflow-y: auto;
+        border: 1px solid #dee2e6;
+        border-radius: 0.25rem;
+        padding: 1rem;
+    }
+</style>
+{% endblock %}
+
+{# 引入報告預覽宏 #}
+{% from "marcos/report_preview_macro.html" import render_report_preview %}
+
+{% block page_title %}編輯報告{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">編輯「{{ report.title }}」報告</h5>
+                <div>
+                    <button id="saveButton" class="btn btn-success">
+                        <i class="fas fa-save me-1"></i> 儲存報告
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <div class="d-flex align-items-center mb-3">
+                        <i class="fas fa-file-alt fa-2x text-primary me-3"></i>
+                        <div>
+                            <h6 class="mb-1">{{ report.title }}</h6>
+                            <div class="small text-muted">
+                                <span>模型: {{ report.ollama_model }}</span> |
+                                <span>建立時間: {{ report.created_at.strftime('%Y-%m-%d %H:%M') }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Markdown 編輯提示 -->
+                <div class="markdown-hints mb-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0">Markdown 編輯提示</h6>
+                        <button type="button" class="btn btn-sm btn-link" data-bs-toggle="collapse" data-bs-target="#markdownHints">
+                            顯示/隱藏
+                        </button>
+                    </div>
+                    <div class="collapse" id="markdownHints">
+                        <div class="mt-2">
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <p><strong>標題：</strong></p>
+                                    <p><code># 一級標題</code></p>
+                                    <p><code>## 二級標題</code></p>
+                                    <p><code>### 三級標題</code></p>
+                                </div>
+                                <div class="col-md-4">
+                                    <p><strong>格式：</strong></p>
+                                    <p><code>**粗體**</code> - <strong>粗體</strong></p>
+                                    <p><code>*斜體*</code> - <em>斜體</em></p>
+                                    <p><code>~~刪除線~~</code> - <del>刪除線</del></p>
+                                </div>
+                                <div class="col-md-4">
+                                    <p><strong>列表：</strong></p>
+                                    <p><code>- 項目</code> - 無序列表</p>
+                                    <p><code>1. 項目</code> - 有序列表</p>
+                                    <p><code>- [ ] 任務</code> - 任務列表</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 編輯器導航 -->
+                <ul class="nav nav-pills mb-3" id="editor-tab" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="edit-tab" data-bs-toggle="pill" data-bs-target="#edit-pane" type="button" role="tab">
+                            <i class="fas fa-edit me-1"></i> 編輯
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="preview-tab" data-bs-toggle="pill" data-bs-target="#preview-pane" type="button" role="tab">
+                            <i class="fas fa-eye me-1"></i> 預覽
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="split-tab" data-bs-toggle="pill" data-bs-target="#split-pane" type="button" role="tab">
+                            <i class="fas fa-columns me-1"></i> 分割視圖
+                        </button>
+                    </li>
+                </ul>
+
+                <!-- 編輯器內容 -->
+                <div class="tab-content" id="editor-tab-content">
+                    <!-- 編輯模式 -->
+                    <div class="tab-pane fade show active" id="edit-pane" role="tabpanel">
+                        <div class="editor-toolbar">
+                            <div class="btn-group me-2">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="btnHeader1" title="一級標題">
+                                    <i class="fas fa-heading"></i>1
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="btnHeader2" title="二級標題">
+                                    <i class="fas fa-heading"></i>2
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="btnHeader3" title="三級標題">
+                                    <i class="fas fa-heading"></i>3
+                                </button>
+                            </div>
+                            <div class="btn-group me-2">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="btnBold" title="粗體">
+                                    <i class="fas fa-bold"></i>
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="btnItalic" title="斜體">
+                                    <i class="fas fa-italic"></i>
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="btnStrikethrough" title="刪除線">
+                                    <i class="fas fa-strikethrough"></i>
+                                </button>
+                            </div>
+                            <div class="btn-group me-2">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="btnList" title="無序列表">
+                                    <i class="fas fa-list-ul"></i>
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="btnOrderedList" title="有序列表">
+                                    <i class="fas fa-list-ol"></i>
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="btnTaskList" title="任務列表">
+                                    <i class="fas fa-tasks"></i>
+                                </button>
+                            </div>
+                            <div class="btn-group">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="btnLink" title="連結">
+                                    <i class="fas fa-link"></i>
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="btnTable" title="表格">
+                                    <i class="fas fa-table"></i>
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="btnCode" title="代碼塊">
+                                    <i class="fas fa-code"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <form id="reportForm" method="post" action="{{ url_for('report.save_report', report_id=report.id) }}">
+                            <textarea id="markdown_content" name="markdown_content" class="form-control markdown-editor">{{ markdown_content }}</textarea>
+                        </form>
+                    </div>
+
+                    <!-- 預覽模式 -->
+                    <div class="tab-pane fade" id="preview-pane" role="tabpanel">
+                        <div class="preview-container" id="markdown-preview">
+                            <!-- 將由 JavaScript 動態填充，使用與 view_report 相同的預覽模板 -->
+                        </div>
+                    </div>
+
+                    <!-- 分割視圖模式 -->
+                    <div class="tab-pane fade" id="split-pane" role="tabpanel">
+                        <div class="split-view-container">
+                            <textarea id="split-markdown-editor" class="form-control split-editor">{{ markdown_content }}</textarea>
+                            <div class="split-preview" id="split-markdown-preview">
+                                <!-- 將由 JavaScript 動態填充，使用與 view_report 相同的預覽模板 -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer d-flex justify-content-between">
+                <a href="{{ url_for('report.view_report', report_id=report.id) }}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-1"></i> 取消編輯
+                </a>
+                <button id="saveButtonBottom" class="btn btn-success">
+                    <i class="fas fa-save me-1"></i> 儲存報告
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- PDF 重新生成確認模態框 -->
+<div class="modal fade" id="pdfConfirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">重新生成 PDF</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>報告已儲存成功！是否要重新生成 PDF 檔案？</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">否</button>
+                <button type="button" class="btn btn-primary" id="regeneratePdf">是，重新生成</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // 初始化 marked.js
+        marked.setOptions({
+            breaks: true, // 啟用換行符轉換為 <br>
+            gfm: true,    // 啟用 GitHub 風格的 Markdown
+            sanitize: false // 不濾除 HTML 標籤
+        });
+
+        // 獲取編輯器和預覽區域元素
+        const markdownEditor = document.getElementById('markdown_content');
+        const splitEditor = document.getElementById('split-markdown-editor');
+        const markdownPreview = document.getElementById('markdown-preview');
+        const splitPreview = document.getElementById('split-markdown-preview');
+
+        // 更新預覽
+        function updatePreview() {
+            const markdown = markdownEditor.value;
+
+            // 使用 marked.js 將 Markdown 轉換為 HTML
+            const htmlContent = marked.parse(markdown);
+
+            // 使用相同的樣式和格式更新預覽區域
+            markdownPreview.innerHTML = `<div class="markdown-body">${htmlContent}</div>`;
+            splitPreview.innerHTML = `<div class="markdown-body">${htmlContent}</div>`;
+        }
+
+        // 同步編輯器內容
+        markdownEditor.addEventListener('input', function() {
+            splitEditor.value = this.value;
+            updatePreview();
+        });
+
+        splitEditor.addEventListener('input', function() {
+            markdownEditor.value = this.value;
+            updatePreview();
+        });
+
+        // 標籤切換時更新預覽
+        document.getElementById('preview-tab').addEventListener('click', updatePreview);
+        document.getElementById('split-tab').addEventListener('click', updatePreview);
+
+        // 儲存報告函數
+        function saveReport() {
+            // 禁用儲存按鈕以防止重複提交
+            document.getElementById('saveButton').disabled = true;
+            document.getElementById('saveButtonBottom').disabled = true;
+
+            // 獲取表單和數據
+            const form = document.getElementById('reportForm');
+            const formData = new FormData(form);
+
+            // 使用 AJAX 提交表單
+            fetch(form.action, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.text())
+            .then(html => {
+                // 檢查重定向
+                if (html.includes('REDIRECT:')) {
+                    // 從 HTML 回應中提取重定向 URL
+                    const match = html.match(/REDIRECT:(.*?)$/m);
+                    if (match && match[1]) {
+                        window.location.href = match[1].trim();
+                    } else {
+                        // 顯示 PDF 重新生成確認對話框
+                        const pdfModal = new bootstrap.Modal(document.getElementById('pdfConfirmModal'));
+                        pdfModal.show();
+                    }
+                } else {
+                    // 顯示成功訊息
+                    alert('報告已成功儲存');
+                    // 重新啟用儲存按鈕
+                    document.getElementById('saveButton').disabled = false;
+                    document.getElementById('saveButtonBottom').disabled = false;
+                }
+            })
+            .catch(error => {
+                console.error('儲存報告時發生錯誤:', error);
+                alert('儲存報告時發生錯誤，請重試');
+                // 重新啟用儲存按鈕
+                document.getElementById('saveButton').disabled = false;
+                document.getElementById('saveButtonBottom').disabled = false;
+            });
+        }
+
+        // 綁定儲存按鈕
+        document.getElementById('saveButton').addEventListener('click', saveReport);
+        document.getElementById('saveButtonBottom').addEventListener('click', saveReport);
+
+        // PDF 重新生成按鈕事件處理
+        document.getElementById('regeneratePdf').addEventListener('click', function() {
+            // 關閉模態框
+            bootstrap.Modal.getInstance(document.getElementById('pdfConfirmModal')).hide();
+
+            // 顯示載入中訊息
+            alert('正在重新生成 PDF，請稍候...');
+
+            // 發送重新生成報告的請求
+            fetch(`{{ url_for('report.regenerate_report', report_id=report.id) }}`, {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('PDF 已成功重新生成');
+                    window.location.href = data.redirect_url;
+                } else {
+                    alert('PDF 生成失敗: ' + (data.message || '未知錯誤'));
+                }
+            })
+            .catch(error => {
+                console.error('重新生成 PDF 時發生錯誤:', error);
+                alert('重新生成 PDF 時發生錯誤，請重試');
+            });
+        });
+
+        // 工具欄按鈕功能實現
+
+        // 輔助函數：在光標位置插入文本
+        function insertTextAtCursor(textarea, text) {
+            const start = textarea.selectionStart;
+            const end = textarea.selectionEnd;
+            const selectedText = textarea.value.substring(start, end);
+
+            // 獲取光標前後的文本
+            const before = textarea.value.substring(0, start);
+            const after = textarea.value.substring(end);
+
+            // 檢查是否有選擇文本
+            if (start !== end) {
+                // 有選擇文本，將其包裹在新文本中
+                textarea.value = before + text.replace('{}', selectedText) + after;
+            } else {
+                // 沒有選擇文本，直接插入
+                textarea.value = before + text + after;
+            }
+
+            // 將焦點設回文本區域
+            textarea.focus();
+
+            // 設置新的光標位置
+            const newPosition = start + (text.indexOf('{}') !== -1 ? start : text.length);
+            textarea.setSelectionRange(newPosition, newPosition);
+
+            // 觸發 input 事件以更新預覽
+            textarea.dispatchEvent(new Event('input'));
+        }
+
+        // 標題按鈕
+        document.getElementById('btnHeader1').addEventListener('click', function() {
+            insertTextAtCursor(markdownEditor, '# {}');
+        });
+
+        document.getElementById('btnHeader2').addEventListener('click', function() {
+            insertTextAtCursor(markdownEditor, '## {}');
+        });
+
+        document.getElementById('btnHeader3').addEventListener('click', function() {
+            insertTextAtCursor(markdownEditor, '### {}');
+        });
+
+        // 文本格式按鈕
+        document.getElementById('btnBold').addEventListener('click', function() {
+            insertTextAtCursor(markdownEditor, '**{}**');
+        });
+
+        document.getElementById('btnItalic').addEventListener('click', function() {
+            insertTextAtCursor(markdownEditor, '*{}*');
+        });
+
+        document.getElementById('btnStrikethrough').addEventListener('click', function() {
+            insertTextAtCursor(markdownEditor, '~~{}~~');
+        });
+
+        // 列表按鈕
+        document.getElementById('btnList').addEventListener('click', function() {
+            insertTextAtCursor(markdownEditor, '- Item 1\n- Item 2\n- Item 3');
+        });
+
+        document.getElementById('btnOrderedList').addEventListener('click', function() {
+            insertTextAtCursor(markdownEditor, '1. Item 1\n2. Item 2\n3. Item 3');
+        });
+
+        document.getElementById('btnTaskList').addEventListener('click', function() {
+            insertTextAtCursor(markdownEditor, '- [ ] Task 1\n- [ ] Task 2\n- [x] Completed task');
+        });
+
+        // 其他元素按鈕
+        document.getElementById('btnLink').addEventListener('click', function() {
+            insertTextAtCursor(markdownEditor, '[連結文字](https://example.com)');
+        });
+
+        document.getElementById('btnTable').addEventListener('click', function() {
+            const table = '| 標題 1 | 標題 2 | 標題 3 |\n| ------- | ------- | ------- |\n| 單元格 1 | 單元格 2 | 單元格 3 |\n| 單元格 4 | 單元格 5 | 單元格 6 |';
+            insertTextAtCursor(markdownEditor, table);
+        });
+
+        document.getElementById('btnCode').addEventListener('click', function() {
+            const code = '```\n// 在這裡放置代碼\nfunction example() {\n    console.log("Hello, world!");\n}\n```';
+            insertTextAtCursor(markdownEditor, code);
+        });
+
+        // 初始化頁面時更新預覽
+        updatePreview();
+    });
+</script>
+{% endblock %}

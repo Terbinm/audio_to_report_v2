@@ -1,0 +1,5 @@
+{% macro render_report_preview(markdown_content) %}
+<div class="markdown-body report-preview">
+    {{ markdown_content | markdown | safe }}
+</div>
+{% endmacro %}

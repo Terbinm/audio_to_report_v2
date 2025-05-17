@@ -1,10 +1,566 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Title</title>
-</head>
-<body>
+{% extends "base.html" %}
 
-</body>
-</html>
+{% block title %}編輯轉錄內容 - {{ config.SITE_TITLE }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .editor-container {
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        overflow: hidden;
+    }
+    
+    .transcript-editor {
+        height: 600px;
+        overflow-y: auto;
+    }
+    
+    .transcript-row {
+        padding: 8px;
+        border-bottom: 1px solid #f0f0f0;
+        transition: background-color 0.2s;
+    }
+    
+    .transcript-row:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .transcript-row.active {
+        background-color: #e9f5ff;
+    }
+    
+    .speaker-badge {
+        padding: 3px 8px;
+        border-radius: 50px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+    
+    .time-display {
+        font-size: 12px;
+        color: #6c757d;
+    }
+    
+    .edit-form {
+        padding: 15px;
+        background-color: #f8f9fa;
+        border-top: 1px solid #ddd;
+    }
+    
+    .speaker-select {
+        width: 120px;
+    }
+    
+    .color-tag {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        margin-right: 5px;
+    }
+</style>
+{% endblock %}
+
+{% block page_title %}編輯轉錄內容{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-10 mx-auto">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">編輯轉錄內容</h5>
+                <div>
+                    <button id="saveButton" class="btn btn-success">
+                        <i class="fas fa-save me-1"></i> 儲存變更
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <div class="d-flex align-items-center p-3 bg-light rounded mb-3">
+                        <i class="fas fa-file-audio fa-2x text-primary me-3"></i>
+                        <div>
+                            <h6 class="mb-1">{{ audio_file.original_filename }}</h6>
+                            <div class="small text-muted">
+                                <span>時長: {{ transcript.total_duration | default('N/A') }} 秒</span> |
+                                <span>說話者: <span id="speakerCount">{{ transcript.speakers_count }}</span></span> |
+                                <span>字數: <span id="wordCount">{{ transcript.word_count }}</span></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="editor-container">
+                    <!-- 轉錄編輯區 -->
+                    <div class="transcript-editor" id="transcriptEditor">
+                        <!-- 轉錄行 - 將由 JavaScript 動態填充 -->
+                        <div class="text-center p-5">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <p class="mt-3">載入轉錄內容中...</p>
+                        </div>
+                    </div>
+                    
+                    <!-- 編輯表單 -->
+                    <div class="edit-form" id="editForm" style="display: none;">
+                        <form id="rowEditForm">
+                            <div class="row">
+                                <div class="col-md-2">
+                                    <label for="editSpeaker" class="form-label">說話者</label>
+                                    <select class="form-select speaker-select" id="editSpeaker">
+                                        <!-- 將由 JavaScript 填充 -->
+                                    </select>
+                                </div>
+                                <div class="col-md-2">
+                                    <label for="editStartTime" class="form-label">開始時間</label>
+                                    <input type="text" class="form-control" id="editStartTime" readonly>
+                                </div>
+                                <div class="col-md-2">
+                                    <label for="editEndTime" class="form-label">結束時間</label>
+                                    <input type="text" class="form-control" id="editEndTime" readonly>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="editText" class="form-label">文本內容</label>
+                                    <textarea class="form-control" id="editText" rows="2"></textarea>
+                                </div>
+                            </div>
+                            <div class="mt-3 text-end">
+                                <button type="button" class="btn btn-secondary me-2" id="cancelEditButton">取消</button>
+                                <button type="button" class="btn btn-primary" id="applyEditButton">套用更改</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                
+                <div class="mt-3">
+                    <button id="addSpeakerButton" class="btn btn-outline-primary btn-sm">
+                        <i class="fas fa-plus me-1"></i> 新增說話者
+                    </button>
+                    <button id="mergeSpeakerButton" class="btn btn-outline-primary btn-sm ms-2">
+                        <i class="fas fa-object-group me-1"></i> 合併說話者
+                    </button>
+                </div>
+            </div>
+            <div class="card-footer d-flex justify-content-between">
+                <a href="{{ url_for('audio.view_transcript', transcript_id=transcript.id) }}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-1"></i> 返回轉錄
+                </a>
+                <button id="saveButtonBottom" class="btn btn-success">
+                    <i class="fas fa-save me-1"></i> 儲存變更
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 新增說話者模態框 -->
+<div class="modal fade" id="addSpeakerModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">新增說話者</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="newSpeakerName" class="form-label">說話者名稱</label>
+                    <input type="text" class="form-control" id="newSpeakerName" placeholder="例如: 主持人, 與會者1">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" id="confirmAddSpeaker">新增</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 合併說話者模態框 -->
+<div class="modal fade" id="mergeSpeakerModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">合併說話者</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="sourceSpeaker" class="form-label">源說話者</label>
+                    <select class="form-select" id="sourceSpeaker">
+                        <!-- 將由 JavaScript 填充 -->
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label for="targetSpeaker" class="form-label">目標說話者</label>
+                    <select class="form-select" id="targetSpeaker">
+                        <!-- 將由 JavaScript 填充 -->
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" id="confirmMergeSpeaker">合併</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // 預設顏色列表（用於說話者標籤）
+        const COLORS = [
+            '#3498db', '#e74c3c', '#2ecc71', '#f39c12', '#9b59b6', 
+            '#1abc9c', '#d35400', '#34495e', '#c0392b', '#16a085',
+            '#27ae60', '#f1c40f', '#8e44ad', '#7f8c8d', '#3498db'
+        ];
+        
+        // 說話者顏色映射
+        const speakerColors = {};
+        
+        // 全局變數
+        let csvData = [];
+        let selectedRowIndex = -1;
+        let speakers = new Set();
+        
+        // 加載 CSV 數據
+        const loadData = () => {
+            try {
+                csvData = JSON.parse('{{ csv_data | safe }}');
+                
+                // 提取所有說話者
+                csvData.forEach(row => {
+                    if (row.speaker) {
+                        speakers.add(row.speaker);
+                    }
+                });
+                
+                // 為每個說話者分配顏色
+                Array.from(speakers).forEach((speaker, index) => {
+                    speakerColors[speaker] = COLORS[index % COLORS.length];
+                });
+                
+                // 渲染編輯器
+                renderEditor();
+                updateStatistics();
+            } catch (error) {
+                console.error('載入資料錯誤:', error);
+                alert('載入轉錄資料失敗，請重試或返回上一頁。');
+            }
+        };
+        
+        // 渲染編輯器
+        const renderEditor = () => {
+            const editor = document.getElementById('transcriptEditor');
+            editor.innerHTML = '';
+            
+            csvData.forEach((row, index) => {
+                const rowElement = document.createElement('div');
+                rowElement.className = 'transcript-row';
+                rowElement.dataset.index = index;
+                
+                // 格式化時間
+                const startTime = formatTime(row.start);
+                const endTime = formatTime(row.end);
+                
+                // 設置說話者顏色
+                const speakerColor = speakerColors[row.speaker] || '#777';
+                
+                rowElement.innerHTML = `
+                    <div class="d-flex align-items-center">
+                        <div class="me-3">
+                            <span class="speaker-badge" style="background-color: ${speakerColor}20; color: ${speakerColor}; border: 1px solid ${speakerColor}">
+                                ${row.speaker}
+                            </span>
+                        </div>
+                        <div class="flex-grow-1">
+                            <div class="mb-1">${row.text}</div>
+                            <div class="time-display">${startTime} - ${endTime}</div>
+                        </div>
+                        <div>
+                            <button class="btn btn-sm btn-outline-primary edit-row-btn">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+                
+                // 添加點擊事件
+                rowElement.querySelector('.edit-row-btn').addEventListener('click', () => {
+                    selectRow(index);
+                });
+                
+                editor.appendChild(rowElement);
+            });
+        };
+        
+        // 選擇行進行編輯
+        const selectRow = (index) => {
+            // 移除之前選中的行的高亮
+            const rows = document.querySelectorAll('.transcript-row');
+            rows.forEach(row => row.classList.remove('active'));
+            
+            // 高亮當前選中的行
+            if (index >= 0 && index < csvData.length) {
+                rows[index].classList.add('active');
+                selectedRowIndex = index;
+                
+                // 顯示編輯表單
+                showEditForm(index);
+            }
+        };
+        
+        // 顯示編輯表單
+        const showEditForm = (index) => {
+            const row = csvData[index];
+            const editForm = document.getElementById('editForm');
+            const speakerSelect = document.getElementById('editSpeaker');
+            
+            // 填充說話者選擇
+            speakerSelect.innerHTML = '';
+            Array.from(speakers).forEach(speaker => {
+                const option = document.createElement('option');
+                option.value = speaker;
+                option.textContent = speaker;
+                if (row.speaker === speaker) {
+                    option.selected = true;
+                }
+                speakerSelect.appendChild(option);
+            });
+            
+            // 填充其他字段
+            document.getElementById('editStartTime').value = formatTime(row.start);
+            document.getElementById('editEndTime').value = formatTime(row.end);
+            document.getElementById('editText').value = row.text;
+            
+            // 顯示表單
+            editForm.style.display = 'block';
+            
+            // 聚焦文本區域
+            document.getElementById('editText').focus();
+        };
+        
+        // 套用編輯
+        const applyEdit = () => {
+            if (selectedRowIndex < 0) return;
+            
+            const row = csvData[selectedRowIndex];
+            row.speaker = document.getElementById('editSpeaker').value;
+            row.text = document.getElementById('editText').value;
+            
+            // 檢查是否新增了說話者
+            if (!speakers.has(row.speaker)) {
+                speakers.add(row.speaker);
+                speakerColors[row.speaker] = COLORS[speakers.size % COLORS.length];
+            }
+            
+            // 更新視圖
+            renderEditor();
+            updateStatistics();
+            
+            // 重新選擇當前行
+            selectRow(selectedRowIndex);
+        };
+        
+        // 取消編輯
+        const cancelEdit = () => {
+            selectedRowIndex = -1;
+            document.getElementById('editForm').style.display = 'none';
+            
+            // 移除所有高亮
+            const rows = document.querySelectorAll('.transcript-row');
+            rows.forEach(row => row.classList.remove('active'));
+        };
+        
+        // 格式化時間
+        const formatTime = (seconds) => {
+            if (!seconds) return "00:00:00.000";
+            
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            const secs = Math.floor(seconds % 60);
+            const ms = Math.floor((seconds % 1) * 1000);
+            
+            return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}.${String(ms).padStart(3, '0')}`;
+        };
+        
+        // 更新統計數據
+        const updateStatistics = () => {
+            document.getElementById('speakerCount').textContent = speakers.size;
+            
+            // 計算總字數
+            let wordCount = 0;
+            csvData.forEach(row => {
+                wordCount += row.text.split(/\s+/).filter(Boolean).length;
+            });
+            document.getElementById('wordCount').textContent = wordCount;
+        };
+        
+        // 新增說話者
+        const addSpeaker = () => {
+            const modal = new bootstrap.Modal(document.getElementById('addSpeakerModal'));
+            modal.show();
+        };
+        
+        // 確認新增說話者
+        const confirmAddSpeaker = () => {
+            const speakerName = document.getElementById('newSpeakerName').value.trim();
+            
+            if (!speakerName) {
+                alert('請輸入說話者名稱');
+                return;
+            }
+            
+            if (speakers.has(speakerName)) {
+                alert('說話者已存在');
+                return;
+            }
+            
+            // 添加新說話者
+            speakers.add(speakerName);
+            speakerColors[speakerName] = COLORS[speakers.size % COLORS.length];
+            
+            // 更新統計和選擇器
+            updateStatistics();
+            
+            // 如果正在編輯，更新編輯表單
+            if (selectedRowIndex >= 0) {
+                const speakerSelect = document.getElementById('editSpeaker');
+                const option = document.createElement('option');
+                option.value = speakerName;
+                option.textContent = speakerName;
+                speakerSelect.appendChild(option);
+            }
+            
+            // 關閉模態框
+            bootstrap.Modal.getInstance(document.getElementById('addSpeakerModal')).hide();
+            document.getElementById('newSpeakerName').value = '';
+        };
+        
+        // 合併說話者
+        const mergeSpeaker = () => {
+            const sourceSpeaker = document.getElementById('sourceSpeaker');
+            const targetSpeaker = document.getElementById('targetSpeaker');
+            
+            // 填充說話者選擇
+            sourceSpeaker.innerHTML = '';
+            targetSpeaker.innerHTML = '';
+            
+            Array.from(speakers).forEach(speaker => {
+                const sourceOption = document.createElement('option');
+                sourceOption.value = speaker;
+                sourceOption.textContent = speaker;
+                sourceSpeaker.appendChild(sourceOption);
+                
+                const targetOption = document.createElement('option');
+                targetOption.value = speaker;
+                targetOption.textContent = speaker;
+                targetSpeaker.appendChild(targetOption);
+            });
+            
+            // 顯示模態框
+            const modal = new bootstrap.Modal(document.getElementById('mergeSpeakerModal'));
+            modal.show();
+        };
+        
+        // 確認合併說話者
+        const confirmMergeSpeaker = () => {
+            const source = document.getElementById('sourceSpeaker').value;
+            const target = document.getElementById('targetSpeaker').value;
+            
+            if (source === target) {
+                alert('源說話者和目標說話者不能相同');
+                return;
+            }
+            
+            // 確認操作
+            if (!confirm(`確定要將說話者 "${source}" 合併到 "${target}" 嗎？`)) {
+                return;
+            }
+            
+            // 執行合併
+            csvData.forEach(row => {
+                if (row.speaker === source) {
+                    row.speaker = target;
+                }
+            });
+            
+            // 更新說話者列表
+            speakers.delete(source);
+            
+            // 更新畫面
+            renderEditor();
+            updateStatistics();
+            
+            // 關閉模態框
+            bootstrap.Modal.getInstance(document.getElementById('mergeSpeakerModal')).hide();
+            
+            // 如果正在編輯，更新編輯表單
+            if (selectedRowIndex >= 0) {
+                showEditForm(selectedRowIndex);
+            }
+        };
+        
+        // 儲存變更
+        const saveChanges = () => {
+            // 顯示確認對話框
+            if (!confirm('確定要儲存修改後的轉錄嗎？')) {
+                return;
+            }
+            
+            // 禁用儲存按鈕
+            document.getElementById('saveButton').disabled = true;
+            document.getElementById('saveButtonBottom').disabled = true;
+            
+            // 準備傳送資料
+            const data = {
+                rows: csvData
+            };
+            
+            // 發送 AJAX 請求
+            fetch('{{ url_for("audio.save_transcript", transcript_id=transcript.id) }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    alert('轉錄已成功儲存');
+                    window.location.href = data.redirect_url;
+                } else {
+                    alert('儲存失敗: ' + data.message);
+                    // 重新啟用儲存按鈕
+                    document.getElementById('saveButton').disabled = false;
+                    document.getElementById('saveButtonBottom').disabled = false;
+                }
+            })
+            .catch(error => {
+                console.error('儲存時發生錯誤:', error);
+                alert('儲存時發生錯誤，請重試');
+                // 重新啟用儲存按鈕
+                document.getElementById('saveButton').disabled = false;
+                document.getElementById('saveButtonBottom').disabled = false;
+            });
+        };
+        
+        // 綁定事件處理函數
+        document.getElementById('applyEditButton').addEventListener('click', applyEdit);
+        document.getElementById('cancelEditButton').addEventListener('click', cancelEdit);
+        document.getElementById('addSpeakerButton').addEventListener('click', addSpeaker);
+        document.getElementById('confirmAddSpeaker').addEventListener('click', confirmAddSpeaker);
+        document.getElementById('mergeSpeakerButton').addEventListener('click', mergeSpeaker);
+        document.getElementById('confirmMergeSpeaker').addEventListener('click', confirmMergeSpeaker);
+        document.getElementById('saveButton').addEventListener('click', saveChanges);
+        document.getElementById('saveButtonBottom').addEventListener('click', saveChanges);
+        
+        // 加載資料並初始化編輯器
+        loadData();
+    });
+</script>
+{% endblock %}
