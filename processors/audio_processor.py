@@ -113,14 +113,23 @@ class AudioProcessor:
 
         # 設定相關路徑
         self.app_config = current_app.config
-        self.output_dir = self.app_config['OUTPUT_FOLDER']
-        self.transcript_dir = self.app_config['TRANSCRIPT_FOLDER']
-        self.visualization_dir = self.app_config['VISUALIZATION_FOLDER']
+
+        # 獲取上傳 ID (從檔案路徑的目錄名稱)
+        self.upload_id = os.path.basename(os.path.dirname(self.audio_file.file_path))
+
+        # 設定輸出目錄為上傳 ID 專屬的子目錄
+        self.output_dir = os.path.join(self.app_config['OUTPUT_FOLDER'], self.upload_id)
+        self.transcript_dir = os.path.join(self.app_config['TRANSCRIPT_FOLDER'], self.upload_id)
+        self.visualization_dir = os.path.join(self.app_config['VISUALIZATION_FOLDER'], self.upload_id)
+
+        # 複製可視化圖表到靜態目錄的子目錄
+        self.static_visualization_dir = os.path.join(self.app_config['STATIC_VISUALIZATION_FOLDER'], self.upload_id)
 
         # 確保輸出目錄存在
         os.makedirs(self.output_dir, exist_ok=True)
         os.makedirs(self.transcript_dir, exist_ok=True)
         os.makedirs(self.visualization_dir, exist_ok=True)
+        os.makedirs(self.static_visualization_dir, exist_ok=True)
 
         # 設定進度回報
         self.progress_queue = queue.Queue()
@@ -541,10 +550,7 @@ class AudioProcessor:
 
             # 複製可視化圖表到靜態目錄，以便網頁訪問
             if visualization_path:
-                static_viz_dir = self.app_config['STATIC_VISUALIZATION_FOLDER']
-                os.makedirs(static_viz_dir, exist_ok=True)
-
-                static_viz_path = os.path.join(static_viz_dir, os.path.basename(visualization_path))
+                static_viz_path = os.path.join(self.static_visualization_dir, os.path.basename(visualization_path))
                 import shutil
                 shutil.copy2(visualization_path, static_viz_path)
 

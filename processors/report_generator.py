@@ -102,7 +102,12 @@ class ReportGenerator:
 
         # 設定相關路徑
         self.app_config = current_app.config
-        self.report_dir = self.app_config['REPORT_FOLDER']
+
+        # 獲取上傳 ID (從轉錄檔案路徑的目錄名稱)
+        self.upload_id = os.path.basename(os.path.dirname(self.transcript.csv_path))
+
+        # 設定報告輸出目錄為上傳 ID 專屬的子目錄
+        self.report_dir = os.path.join(self.app_config['REPORT_FOLDER'], self.upload_id)
 
         # 確保輸出目錄存在
         os.makedirs(self.report_dir, exist_ok=True)
@@ -336,11 +341,6 @@ class ReportGenerator:
         except Exception as e:
             logger.error(f"生成報告內容時發生錯誤: {e}")
             raise ReportGeneratorException(f"生成報告內容時發生錯誤: {e}")
-
-    # 修改 processors/report_generator.py 中的 PDF 生成部分
-
-    # 在 _save_report 方法中修改 PDF 生成代碼
-    # 這部分需要替換原來使用 WeasyPrint 的部分
 
     def _save_report(self, content):
         """儲存報告為 Markdown 和 PDF 格式"""

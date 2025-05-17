@@ -14,6 +14,7 @@ import datetime
 import pandas as pd
 import json
 import threading
+import uuid
 
 # 創建藍圖
 audio = Blueprint('audio', __name__)
@@ -71,11 +72,27 @@ def upload_audio():
         flash(f'不支援的檔案類型。允許的類型: {", ".join(current_app.config["ALLOWED_EXTENSIONS"])}', 'error')
         return redirect(request.url)
 
+    # 為此次上傳建立唯一識別碼
+    upload_id = str(uuid.uuid4())
+
+    # 創建該上傳的專屬資料夾
+    upload_folder = os.path.join(current_app.config['UPLOAD_FOLDER'], upload_id)
+    os.makedirs(upload_folder, exist_ok=True)
+
+    # 同時為輸出創建對應的資料夾結構
+    transcript_folder = os.path.join(current_app.config['TRANSCRIPT_FOLDER'], upload_id)
+    visualization_folder = os.path.join(current_app.config['VISUALIZATION_FOLDER'], upload_id)
+    report_folder = os.path.join(current_app.config['REPORT_FOLDER'], upload_id)
+
+    os.makedirs(transcript_folder, exist_ok=True)
+    os.makedirs(visualization_folder, exist_ok=True)
+    os.makedirs(report_folder, exist_ok=True)
+
     # 保存檔案
     filename = secure_filename(file.filename)
     timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
     unique_filename = f"{timestamp}_{filename}"
-    file_path = os.path.join(current_app.config['UPLOAD_FOLDER'], unique_filename)
+    file_path = os.path.join(upload_folder, unique_filename)
 
     file.save(file_path)
 
@@ -250,7 +267,9 @@ def view_transcript(transcript_id):
     visualization_url = None
     if transcript.visualization_path:
         viz_filename = os.path.basename(transcript.visualization_path)
-        visualization_url = url_for('static', filename=f'outputs/visualizations/{viz_filename}')
+        # 提取上傳 ID 從路徑中
+        upload_id = os.path.basename(os.path.dirname(transcript.visualization_path))
+        visualization_url = url_for('static', filename=f'outputs/visualizations/{upload_id}/{viz_filename}')
 
     return render_template(
         'transcript.html',
@@ -309,11 +328,14 @@ def save_transcript(transcript_id):
         df = pd.DataFrame(rows)
 
         # 保存為 CSV
-        edited_csv_path = transcript.csv_path.replace('.csv', '_edited.csv')
+        # 從原始路徑中提取上傳 ID
+        upload_id = os.path.basename(os.path.dirname(transcript.csv_path))
+        transcript_folder = os.path.join(current_app.config['TRANSCRIPT_FOLDER'], upload_id)
+        edited_csv_path = os.path.join(transcript_folder, f"{os.path.basename(transcript.csv_path).split('.')[0]}_edited.csv")
         df.to_csv(edited_csv_path, index=False, encoding='utf-8')
 
         # 生成文字格式轉錄稿
-        edited_txt_path = transcript.txt_path.replace('.txt', '_edited.txt')
+        edited_txt_path = os.path.join(transcript_folder, f"{os.path.basename(transcript.txt_path).split('.')[0]}_edited.txt")
         with open(edited_txt_path, 'w', encoding='utf-8') as f:
             f.write(f"檔案: {transcript.audio_file.original_filename} (編輯版)\n")
             f.write(f"編輯日期: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")

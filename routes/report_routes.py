@@ -29,7 +29,7 @@ def get_available_ollama_models():
     Returns:
         list: 可用模型列表
     """
-    default_models = ['phi4:14b', 'llama3', 'gemma:7b', 'mistral', 'qwen:14b']  # 預設模型列表
+    default_models = ['無法獲得模型表格']  # 預設模型列表
 
     try:
         # 獲取 Ollama 伺服器設定
@@ -37,7 +37,7 @@ def get_available_ollama_models():
         ollama_port = current_app.config.get('DEFAULT_OLLAMA_PORT', '11434')
 
         # 構建請求 URL
-        url = f"https://{ollama_host}:{ollama_port}/api/tags"
+        url = f"http://{ollama_host}:{ollama_port}/api/tags"
 
         # 發送請求
         response = requests.get(url, timeout=3)
@@ -278,8 +278,20 @@ def save_report(report_id):
             flash('報告內容不能為空', 'error')
             return redirect(url_for('report.edit_report', report_id=report_id))
 
+        # 從原始路徑中提取上傳 ID
+        upload_id = os.path.basename(os.path.dirname(report_entry.markdown_path)) if report_entry.markdown_path else None
+
+        # 如果沒有上傳 ID (可能是舊報告)，則從轉錄路徑獲取
+        if not upload_id and report_entry.transcript and report_entry.transcript.csv_path:
+            upload_id = os.path.basename(os.path.dirname(report_entry.transcript.csv_path))
+
+        # 確定報告目錄
+        report_dir = os.path.join(current_app.config['REPORT_FOLDER'], upload_id) if upload_id else current_app.config['REPORT_FOLDER']
+        os.makedirs(report_dir, exist_ok=True)
+
         # 保存編輯後的內容
-        edited_path = report_entry.markdown_path.replace('.md', '_edited.md')
+        edited_basename = f"report_{report_id}_edited_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        edited_path = os.path.join(report_dir, f"{edited_basename}.md")
 
         with open(edited_path, 'w', encoding='utf-8') as f:
             f.write(markdown_content)
@@ -291,14 +303,11 @@ def save_report(report_id):
 
         # 嘗試重新生成 PDF (如果支援)
         try:
-            edited_pdf_path = report_entry.pdf_path.replace('.pdf', '_edited.pdf') if report_entry.pdf_path else os.path.join(
-                current_app.config['REPORT_FOLDER'],
-                f"{os.path.basename(edited_path).split('.')[0]}.pdf"
-            )
+            # 設定 PDF 輸出路徑
+            edited_pdf_path = os.path.join(report_dir, f"{edited_basename}.pdf")
 
             # 使用 xhtml2pdf 生成 PDF
             try:
-
                 # 將 Markdown 轉換為 HTML
                 html_content = markdown.markdown(markdown_content)
 
