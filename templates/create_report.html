@@ -6,63 +6,121 @@
 
 {% block content %}
 <div class="row">
-    <div class="col-md-8 mx-auto">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">生成會議報告</h5>
-            </div>
-            <div class="card-body">
-                <div class="mb-4">
-                    <h6>轉錄資訊</h6>
-                    <div class="d-flex align-items-center p-3 bg-light rounded mb-3">
-                        <i class="fas fa-file-alt fa-2x text-primary me-3"></i>
-                        <div>
-                            <h6 class="mb-1">{{ audio_file.original_filename }}</h6>
-                            <div class="small text-muted">
-                                <span>時長: {{ transcript.total_duration | default('N/A') }} 秒</span> |
-                                <span>說話者: {{ transcript.speakers_count }}</span> |
-                                <span>字數: {{ transcript.word_count }}</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+   <div class="col-md-8 mx-auto">
+       <div class="card">
+           <div class="card-header">
+               <h5 class="mb-0">生成會議報告</h5>
+           </div>
+           <div class="card-body">
+               <div class="mb-4">
+                   <h6>轉錄資訊</h6>
+                   <div class="d-flex align-items-center p-3 bg-light rounded mb-3">
+                       <i class="fas fa-file-alt fa-2x text-primary me-3"></i>
+                       <div>
+                           <h6 class="mb-1">{{ audio_file.original_filename }}</h6>
+                           <div class="small text-muted">
+                               <span>時長: {{ transcript.total_duration | default('N/A') }} 秒</span> |
+                               <span>說話者: {{ transcript.speakers_count }}</span> |
+                               <span>字數: {{ transcript.word_count }}</span>
+                           </div>
+                       </div>
+                   </div>
+               </div>
 
-                <form action="{{ url_for('report.create_report', transcript_id=transcript.id) }}" method="post">
-                    <div class="mb-3">
-                        <label for="title" class="form-label">報告標題</label>
-                        <input type="text" class="form-control" id="title" name="title"
-                            value="會議報告 - {{ audio_file.original_filename.split('.')[0] }}" required>
-                    </div>
+               <form action="{{ url_for('report.create_report', transcript_id=transcript.id) }}" method="post">
+                   <div class="mb-3">
+                       <label for="title" class="form-label">報告標題</label>
+                       <input type="text" class="form-control" id="title" name="title"
+                           value="會議報告 - {{ audio_file.original_filename.split('.')[0] }}" required>
+                   </div>
 
-                    <div class="mb-3">
-                        <label for="ollama_model" class="form-label">生成模型</label>
-                        <select class="form-select" id="ollama_model" name="ollama_model">
-                            {% for model in ollama_models %}
-                            <option value="{{ model }}" {% if model == default_ollama_model %}selected{% endif %}>{{ model }}</option>
-                            {% endfor %}
-                        </select>
-                        <div class="form-text">選擇用於生成報告的 LLM 模型</div>
-                    </div>
+                   <div class="mb-3">
+                       <label for="ollama_model" class="form-label">生成模型</label>
+                       <select class="form-select" id="ollama_model" name="ollama_model">
+                           {% for model in ollama_models %}
+                           <option value="{{ model }}" {% if model == default_ollama_model %}selected{% endif %}>{{ model }}</option>
+                           {% endfor %}
+                       </select>
+                       <div class="form-text">選擇用於生成報告的 LLM 模型</div>
+                   </div>
 
-                    <div class="mb-3">
-                        <label for="system_prompt" class="form-label">系統提示詞</label>
-                        <textarea class="form-control" id="system_prompt" name="system_prompt" rows="8">{{ default_system_prompt }}</textarea>
-                        <div class="form-text">用於指導 LLM 生成報告的提示詞</div>
-                    </div>
+                   <!-- LLM 參數設定區塊 -->
+                   <div class="mb-4">
+                       <h6 class="mb-3">生成參數設定 <button type="button" class="btn btn-sm btn-link" data-bs-toggle="collapse" data-bs-target="#advancedOptions">展開/收起</button></h6>
 
-                    <div class="text-center mt-4">
-                        <button type="submit" class="btn btn-primary btn-lg">
-                            <i class="fas fa-robot me-2"></i> 開始生成報告
-                        </button>
-                    </div>
-                </form>
-            </div>
-            <div class="card-footer text-center">
-                <div class="text-muted small">
-                    生成過程可能需要幾分鐘，請耐心等待
-                </div>
-            </div>
-        </div>
-    </div>
+                       <div class="collapse" id="advancedOptions">
+                           <div class="row g-3">
+                               <div class="col-md-6">
+                                   <label for="temperature" class="form-label">Temperature (溫度)</label>
+                                   <input type="number" class="form-control" id="temperature" name="temperature"
+                                       value="{{ default_temperature }}" min="0.0" max="1.0" step="0.1">
+                                   <div class="form-text">控制隨機性，0 為確定性，1 為最大隨機</div>
+                               </div>
+
+                               <div class="col-md-6">
+                                   <label for="top_p" class="form-label">Top-P</label>
+                                   <input type="number" class="form-control" id="top_p" name="top_p"
+                                       value="{{ default_top_p }}" min="0.0" max="1.0" step="0.1">
+                                   <div class="form-text">控制詞彙多樣性，數值越小選擇越確定</div>
+                               </div>
+
+                               <div class="col-md-6">
+                                   <label for="top_k" class="form-label">Top-K</label>
+                                   <input type="number" class="form-control" id="top_k" name="top_k"
+                                       value="{{ default_top_k }}" min="1" max="100" step="1">
+                                   <div class="form-text">限制詞彙候選數量</div>
+                               </div>
+
+                               <div class="col-md-6">
+                                   <label for="frequency_penalty" class="form-label">Frequency Penalty (頻率懲罰)</label>
+                                   <input type="number" class="form-control" id="frequency_penalty" name="frequency_penalty"
+                                       value="{{ default_frequency_penalty }}" min="-2.0" max="2.0" step="0.1">
+                                   <div class="form-text">減少單詞重複，正值降低常見詞出現頻率</div>
+                               </div>
+
+                               <div class="col-md-6">
+                                   <label for="presence_penalty" class="form-label">Presence Penalty (存在懲罰)</label>
+                                   <input type="number" class="form-control" id="presence_penalty" name="presence_penalty"
+                                       value="{{ default_presence_penalty }}" min="-2.0" max="2.0" step="0.1">
+                                   <div class="form-text">減少主題重複，正值鼓勵談論新主題</div>
+                               </div>
+
+                               <div class="col-md-6">
+                                   <label for="repeat_penalty" class="form-label">Repeat Penalty (重複懲罰)</label>
+                                   <input type="number" class="form-control" id="repeat_penalty" name="repeat_penalty"
+                                       value="{{ default_repeat_penalty }}" min="1.0" max="2.0" step="0.1">
+                                   <div class="form-text">專用於減少文字重複的懲罰</div>
+                               </div>
+
+                               <div class="col-md-6">
+                                   <label for="seed" class="form-label">Seed (隨機種子)</label>
+                                   <input type="number" class="form-control" id="seed" name="seed"
+                                       placeholder="可選">
+                                   <div class="form-text">設定隨機種子以確保結果可重複</div>
+                               </div>
+                           </div>
+                       </div>
+                   </div>
+
+                   <div class="mb-3">
+                       <label for="system_prompt" class="form-label">系統提示詞</label>
+                       <textarea class="form-control" id="system_prompt" name="system_prompt" rows="8">{{ default_system_prompt }}</textarea>
+                       <div class="form-text">用於指導 LLM 生成報告的提示詞</div>
+                   </div>
+
+                   <div class="text-center mt-4">
+                       <button type="submit" class="btn btn-primary btn-lg">
+                           <i class="fas fa-robot me-2"></i> 開始生成報告
+                       </button>
+                   </div>
+               </form>
+           </div>
+           <div class="card-footer text-center">
+               <div class="text-muted small">
+                   生成過程可能需要幾分鐘，請耐心等待
+               </div>
+           </div>
+       </div>
+   </div>
 </div>
 {% endblock %}

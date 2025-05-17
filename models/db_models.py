@@ -101,6 +101,15 @@ class Report(db.Model):
     system_prompt = db.Column(db.Text, nullable=False)  # 用於生成報告的系統提示詞
     ollama_model = db.Column(db.String(50), nullable=False)  # 使用的 LLM 模型
 
+    # LLM 生成參數
+    temperature = db.Column(db.Float, nullable=True)  # 溫度參數
+    top_p = db.Column(db.Float, nullable=True)  # Top-p 採樣
+    top_k = db.Column(db.Integer, nullable=True)  # Top-k 採樣
+    frequency_penalty = db.Column(db.Float, nullable=True)  # 頻率懲罰
+    presence_penalty = db.Column(db.Float, nullable=True)  # 存在懲罰
+    repeat_penalty = db.Column(db.Float, nullable=True)  # 重複懲罰
+    seed = db.Column(db.Integer, nullable=True)  # 隨機種子
+
     # 報告檔案路徑
     markdown_path = db.Column(db.String(255), nullable=True)
     pdf_path = db.Column(db.String(255), nullable=True)

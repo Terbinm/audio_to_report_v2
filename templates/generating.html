@@ -9,26 +9,31 @@
     <div class="col-md-8 mx-auto">
         <div class="card">
             <div class="card-header">
-                <h5 class="mb-0">處理進度</h5>
+                <h5 class="mb-0">報告生成進度</h5>
             </div>
-            <div class="card-body text-center">
-                <div class="mb-4">
-                    <div class="spinner-border text-primary" role="status">
-                        <span class="visually-hidden">Loading...</span>
+            <div class="card-body">
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span id="statusText" class="status-text">{{ report.status.value }}</span>
+                        <span id="progressPercent" class="progress-percent">{{ report.progress | int }}%</span>
+                    </div>
+                    <div class="progress mb-3">
+                        <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated"
+                            role="progressbar" aria-valuenow="{{ report.progress }}" aria-valuemin="0"
+                            aria-valuemax="100" style="width: {{ report.progress }}%">
+                        </div>
                     </div>
                 </div>
 
-                <h4 id="statusText">{{ report.status.value }}</h4>
-                <div class="progress mb-3">
-                    <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated"
-                        role="progressbar" aria-valuenow="{{ report.progress }}" aria-valuemin="0"
-                        aria-valuemax="100" style="width: {{ report.progress }}%">
+                <!-- 實時串流輸出區域 -->
+                <div class="stream-container p-3 bg-light rounded mb-3">
+                    <div id="streamOutput" class="markdown-body" style="min-height: 300px; white-space: pre-wrap;">
+                        <!-- 這裡將顯示實時生成的內容 -->
                     </div>
                 </div>
-                <p id="progressPercent" class="mb-4">{{ report.progress | int }}%</p>
 
                 <div id="message" class="text-muted">
-                    處理需要一些時間，請耐心等待...
+                    正在生成報告，內容將實時顯示...
                 </div>
             </div>
             <div class="card-footer">
@@ -36,7 +41,9 @@
                     <a href="{{ url_for('auth.dashboard') }}" class="btn btn-outline-secondary">
                         <i class="fas fa-arrow-left me-1"></i> 返回儀表板
                     </a>
-                    <div id="actionButtons"></div>
+                    <div id="actionButtons">
+                        <!-- 生成完成後的按鈕將顯示在這裡 -->
+                    </div>
                 </div>
             </div>
         </div>
@@ -45,56 +52,113 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script>
-    // 檢查進度
+    // 初始化 marked.js
+    marked.setOptions({
+        breaks: true, // 啟用換行符轉換為 <br>
+        gfm: true     // 啟用 GitHub 風格的 Markdown
+    });
+
+    // 檢查進度並接收串流內容
     document.addEventListener('DOMContentLoaded', function() {
         // 初始化進度檢查
         const reportId = {{ report.id }};
         const initialStatus = "{{ report.status.value }}";
         const initialProgress = {{ report.progress }};
+        const streamOutput = document.getElementById('streamOutput');
 
+        let generatedContent = "";
+        let lastRenderTime = 0;
+        const renderInterval = 100; // 限制渲染更新頻率(毫秒)
+
+        // 建立 EventSource 連接 (SSE)
+        if (initialStatus !== 'completed' && initialStatus !== 'failed') {
+            const eventSource = new EventSource(`/stream/${reportId}`);
+
+            // 接收串流文本塊
+            eventSource.addEventListener('message', function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+
+                    if (data.chunk) {
+                        // 添加到生成內容
+                        generatedContent += data.chunk;
+
+                        // 按一定間隔渲染，避免過於頻繁刷新
+                        const now = Date.now();
+                        if (now - lastRenderTime > renderInterval) {
+                            // 渲染 Markdown
+                            streamOutput.innerHTML = marked.parse(generatedContent);
+                            lastRenderTime = now;
+                        }
+                    }
+                } catch (error) {
+                    console.error('解析訊息時發生錯誤:', error);
+                }
+            });
+
+            // 串流結束
+            eventSource.addEventListener('done', function() {
+                eventSource.close();
+                console.log('串流生成完成');
+
+                // 最終渲染
+                streamOutput.innerHTML = marked.parse(generatedContent);
+            });
+
+            // 錯誤處理
+            eventSource.addEventListener('error', function(event) {
+                console.error('串流發生錯誤:', event);
+                eventSource.close();
+            });
+        }
+
+        // 仍然保留原有的進度檢查
+        function checkGeneratingStatus(reportId, status, progress) {
+            if (status !== 'completed' && status !== 'failed') {
+                setTimeout(function() {
+                    fetch(`/generating_status/${reportId}/check`)
+                        .then(response => response.json())
+                        .then(data => {
+                            // 更新進度
+                            updateProgress(data.progress);
+
+                            if (data.status === 'completed') {
+                                // 完成後重定向
+                                window.location.href = data.redirect_url;
+                            } else if (data.status === 'failed') {
+                                // 顯示錯誤
+                                document.getElementById('statusText').textContent = '生成失敗';
+                                document.getElementById('message').innerHTML =
+                                    `<div class="alert alert-danger">${data.message}</div>`;
+                                document.getElementById('actionButtons').innerHTML =
+                                    `<a href="${data.redirect_url}" class="btn btn-primary">返回</a>`;
+                            } else {
+                                // 繼續檢查
+                                checkGeneratingStatus(reportId, data.status, data.progress);
+                            }
+                        })
+                        .catch(error => {
+                            console.error('檢查進度時發生錯誤:', error);
+                            // 發生錯誤時也繼續嘗試
+                            checkGeneratingStatus(reportId, status, progress);
+                        });
+                }, 1000);
+            }
+        }
+
+        function updateProgress(progress) {
+            const progressBar = document.getElementById('progressBar');
+            const progressPercent = document.getElementById('progressPercent');
+
+            progressBar.style.width = progress + '%';
+            progressBar.setAttribute('aria-valuenow', progress);
+            progressPercent.textContent = Math.round(progress) + '%';
+        }
+
+        // 啟動進度檢查
         checkGeneratingStatus(reportId, initialStatus, initialProgress);
     });
-
-    function checkGeneratingStatus(reportId, status, progress) {
-        if (status !== 'completed' && status !== 'failed') {
-            setTimeout(function() {
-                fetch(`/generating_status/${reportId}/check`)
-                    .then(response => response.json())
-                    .then(data => {
-                        // 更新進度
-                        updateProgress(data.progress);
-
-                        if (data.status === 'completed') {
-                            // 完成後重定向
-                            window.location.href = data.redirect_url;
-                        } else if (data.status === 'failed') {
-                            // 顯示錯誤
-                            document.getElementById('statusText').textContent = '生成失敗';
-                            document.getElementById('message').innerHTML = `<div class="alert alert-danger">${data.message}</div>`;
-                            document.getElementById('actionButtons').innerHTML =
-                                `<a href="${data.redirect_url}" class="btn btn-primary">返回</a>`;
-                        } else {
-                            // 繼續檢查
-                            checkGeneratingStatus(reportId, data.status, data.progress);
-                        }
-                    })
-                    .catch(error => {
-                        console.error('檢查進度時發生錯誤:', error);
-                        // 發生錯誤時也繼續嘗試
-                        checkGeneratingStatus(reportId, status, progress);
-                    });
-            }, 1000);
-        }
-    }
-
-    function updateProgress(progress) {
-        const progressBar = document.getElementById('progressBar');
-        const progressPercent = document.getElementById('progressPercent');
-
-        progressBar.style.width = progress + '%';
-        progressBar.setAttribute('aria-valuenow', progress);
-        progressPercent.textContent = Math.round(progress) + '%';
-    }
 </script>
 {% endblock %}

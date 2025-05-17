@@ -265,6 +265,15 @@ class ReportGenerator:
             # 準備 API 請求
             self.reporter.update_step_progress(20, f"連接 Ollama 服務 ({self.ollama_host}:{self.ollama_port})")
 
+            # 從設定檔獲取生成參數
+            temperature = self.report.temperature or self.app_config.get('DEFAULT_TEMPERATURE')
+            top_p = self.report.top_p or self.app_config.get('DEFAULT_TOP_P')
+            top_k = self.report.top_k or self.app_config.get('DEFAULT_TOP_K')
+            frequency_penalty = self.report.frequency_penalty or self.app_config.get('DEFAULT_FREQUENCY_PENALTY')
+            presence_penalty = self.report.presence_penalty or self.app_config.get('DEFAULT_PRESENCE_PENALTY')
+            repeat_penalty = self.report.repeat_penalty or self.app_config.get('DEFAULT_REPEAT_PENALTY')
+            seed = self.report.seed or self.app_config.get('DEFAULT_SEED')
+
             headers = {"Content-Type": "application/json"}
             data = {
                 "model": self.ollama_model,
@@ -272,11 +281,25 @@ class ReportGenerator:
                 "system": system_prompt,
                 "stream": True,
                 "options": {
-                    "temperature": 0.7,
-                    "top_p": 0.9,
-                    "top_k": 40
+                    "temperature": temperature,
+                    "top_p": top_p,
+                    "top_k": top_k,
+                    "frequency_penalty": frequency_penalty,
+                    "presence_penalty": presence_penalty,
+                    "repeat_penalty": repeat_penalty
                 }
             }
+
+            # 僅在有設定時添加 seed 參數
+            if seed is not None:
+                data["options"]["seed"] = seed
+
+            # 儲存 LLM 請求參數用於調試
+            debug_dir = self.app_config.get('REPORT_DEBUG_FOLDER')
+            os.makedirs(debug_dir, exist_ok=True)
+            debug_file = os.path.join(debug_dir, f"report_{self.report_id}_request.json")
+            with open(debug_file, 'w', encoding='utf-8') as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
 
             # 發送請求並串流接收生成內容
             self.reporter.update_step_progress(30, f"正在使用 {self.ollama_model} 生成報告")
@@ -295,11 +318,13 @@ class ReportGenerator:
 
                 tokens_received = 0
                 content = ""
+                response_chunks = []
 
                 for line in response.iter_lines():
                     if line:
                         try:
                             json_line = json.loads(line)
+                            response_chunks.append(json_line)  # 儲存原始回應
 
                             # 獲取生成的文本並添加到內容中
                             if "response" in json_line:
@@ -325,6 +350,11 @@ class ReportGenerator:
                         except json.JSONDecodeError:
                             logger.warning(f"無法解析 JSON: {line}")
 
+                # 儲存 LLM 響應用於調試
+                debug_response_file = os.path.join(debug_dir, f"report_{self.report_id}_response.json")
+                with open(debug_response_file, 'w', encoding='utf-8') as f:
+                    json.dump(response_chunks, f, ensure_ascii=False, indent=2)
+
                 self.reporter.update_step_progress(90, "報告生成完成")
 
             except requests.RequestException as e:
@@ -341,6 +371,7 @@ class ReportGenerator:
         except Exception as e:
             logger.error(f"生成報告內容時發生錯誤: {e}")
             raise ReportGeneratorException(f"生成報告內容時發生錯誤: {e}")
+
 
     def _save_report(self, content):
         """儲存報告為 Markdown 和 PDF 格式"""

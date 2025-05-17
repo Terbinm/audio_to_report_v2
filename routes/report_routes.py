@@ -73,8 +73,14 @@ def create_form(transcript_id):
     # 獲取 Ollama 模型列表
     ollama_models = get_available_ollama_models()
 
-    # 獲取預設提示詞
+    # 獲取預設參數
     default_system_prompt = current_app.config.get('DEFAULT_SYSTEM_PROMPT', '')
+    default_temperature = current_app.config.get('DEFAULT_TEMPERATURE')
+    default_top_p = current_app.config.get('DEFAULT_TOP_P')
+    default_top_k = current_app.config.get('DEFAULT_TOP_K')
+    default_frequency_penalty = current_app.config.get('DEFAULT_FREQUENCY_PENALTY')
+    default_presence_penalty = current_app.config.get('DEFAULT_PRESENCE_PENALTY')
+    default_repeat_penalty = current_app.config.get('DEFAULT_REPEAT_PENALTY')
 
     return render_template(
         'create_report.html',
@@ -82,7 +88,13 @@ def create_form(transcript_id):
         audio_file=transcript.audio_file,
         ollama_models=ollama_models,
         default_ollama_model=current_app.config.get('DEFAULT_OLLAMA_MODEL'),
-        default_system_prompt=default_system_prompt
+        default_system_prompt=default_system_prompt,
+        default_temperature=default_temperature,
+        default_top_p=default_top_p,
+        default_top_k=default_top_k,
+        default_frequency_penalty=default_frequency_penalty,
+        default_presence_penalty=default_presence_penalty,
+        default_repeat_penalty=default_repeat_penalty
     )
 
 
@@ -96,16 +108,60 @@ def create_report(transcript_id):
         AudioFile.user_id == current_user.id
     ).first_or_404()
 
-    # 獲取參數
+    # 獲取基本參數
     title = request.form.get('title') or f"會議報告 - {datetime.datetime.now().strftime('%Y-%m-%d')}"
     ollama_model = request.form.get('ollama_model') or current_app.config.get('DEFAULT_OLLAMA_MODEL')
     system_prompt = request.form.get('system_prompt') or current_app.config.get('DEFAULT_SYSTEM_PROMPT')
+
+    # 獲取生成參數
+    try:
+        temperature = float(request.form.get('temperature')) if request.form.get('temperature') else None
+    except ValueError:
+        temperature = None
+
+    try:
+        top_p = float(request.form.get('top_p')) if request.form.get('top_p') else None
+    except ValueError:
+        top_p = None
+
+    try:
+        top_k = int(request.form.get('top_k')) if request.form.get('top_k') else None
+    except ValueError:
+        top_k = None
+
+    try:
+        frequency_penalty = float(request.form.get('frequency_penalty')) if request.form.get(
+            'frequency_penalty') else None
+    except ValueError:
+        frequency_penalty = None
+
+    try:
+        presence_penalty = float(request.form.get('presence_penalty')) if request.form.get('presence_penalty') else None
+    except ValueError:
+        presence_penalty = None
+
+    try:
+        repeat_penalty = float(request.form.get('repeat_penalty')) if request.form.get('repeat_penalty') else None
+    except ValueError:
+        repeat_penalty = None
+
+    try:
+        seed = int(request.form.get('seed')) if request.form.get('seed') else None
+    except ValueError:
+        seed = None
 
     # 創建報告記錄
     report_entry = Report(
         title=title,
         system_prompt=system_prompt,
         ollama_model=ollama_model,
+        temperature=temperature,
+        top_p=top_p,
+        top_k=top_k,
+        frequency_penalty=frequency_penalty,
+        presence_penalty=presence_penalty,
+        repeat_penalty=repeat_penalty,
+        seed=seed,
         status=ReportStatus.GENERATING,
         user_id=current_user.id,
         audio_file_id=transcript.audio_file.id,
