@@ -128,8 +128,18 @@ class ReportGenerator:
         self.report.progress = 0
         db.session.commit()
 
-        # 啟動生成線程
-        generate_thread = threading.Thread(target=self._generate_report)
+        # 獲取應用上下文和當前報告ID
+        app = current_app._get_current_object()
+        report_id = self.report_id
+
+        # 啟動生成線程，確保傳遞應用上下文
+        def run_with_app_context():
+            with app.app_context():
+                # 在新的線程中重新獲取報告生成器對象
+                generator = ReportGenerator(report_id)
+                generator._generate_report()
+
+        generate_thread = threading.Thread(target=run_with_app_context)
         generate_thread.daemon = True
         generate_thread.start()
 
@@ -327,6 +337,11 @@ class ReportGenerator:
             logger.error(f"生成報告內容時發生錯誤: {e}")
             raise ReportGeneratorException(f"生成報告內容時發生錯誤: {e}")
 
+    # 修改 processors/report_generator.py 中的 PDF 生成部分
+
+    # 在 _save_report 方法中修改 PDF 生成代碼
+    # 這部分需要替換原來使用 WeasyPrint 的部分
+
     def _save_report(self, content):
         """儲存報告為 Markdown 和 PDF 格式"""
         try:
@@ -343,58 +358,58 @@ class ReportGenerator:
 
             logger.info(f"已儲存 Markdown 報告到: {markdown_path}")
 
-            # 嘗試生成 PDF (如有支援)
+            # 嘗試生成 PDF (使用 xhtml2pdf 而非 WeasyPrint)
             pdf_path = None
             try:
                 self.reporter.update_step_progress(60, "嘗試生成 PDF 報告")
 
-                # 檢查是否有 weasyprint 或其他 PDF 生成庫
+                # 檢查是否有 xhtml2pdf
                 pdf_generator_available = False
 
                 try:
-                    from weasyprint import HTML
+                    from xhtml2pdf import pisa
                     pdf_generator_available = True
                 except ImportError:
-                    logger.warning("未找到 weasyprint 套件，無法生成 PDF 報告")
+                    logger.warning("未找到 xhtml2pdf 套件，無法生成 PDF 報告")
 
                 if pdf_generator_available:
                     pdf_path = os.path.join(self.report_dir, f"{base_name}.pdf")
 
-                    # 使用 weasyprint 生成 PDF
-                    # 首先將 Markdown 轉換為 HTML
-                    try:
-                        import markdown
-                        html_content = markdown.markdown(content)
+                    # 使用 markdown 轉換為 HTML
+                    import markdown
+                    html_content = markdown.markdown(content)
 
-                        # 添加基本的 CSS 樣式
-                        styled_html = f"""
-                        <!DOCTYPE html>
-                        <html>
-                        <head>
-                            <meta charset="UTF-8">
-                            <title>{self.report.title}</title>
-                            <style>
-                                body {{ font-family: Arial, sans-serif; margin: 2cm; }}
-                                h1 {{ color: #333366; }}
-                                h2 {{ color: #333366; border-bottom: 1px solid #ddd; padding-bottom: 5px; }}
-                                table {{ border-collapse: collapse; width: 100%; margin: 15px 0; }}
-                                th, td {{ border: 1px solid #ddd; padding: 8px; }}
-                                th {{ background-color: #f2f2f2; }}
-                                @page {{ size: A4; margin: 2cm; }}
-                            </style>
-                        </head>
-                        <body>
-                            {html_content}
-                        </body>
-                        </html>
-                        """
+                    # 添加基本的 CSS 樣式
+                    styled_html = f"""
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <meta charset="UTF-8">
+                        <title>{self.report.title}</title>
+                        <style>
+                            body {{ font-family: Arial, sans-serif; margin: 2cm; }}
+                            h1 {{ color: #333366; }}
+                            h2 {{ color: #333366; border-bottom: 1px solid #ddd; padding-bottom: 5px; }}
+                            table {{ border-collapse: collapse; width: 100%; margin: 15px 0; }}
+                            th, td {{ border: 1px solid #ddd; padding: 8px; }}
+                            th {{ background-color: #f2f2f2; }}
+                        </style>
+                    </head>
+                    <body>
+                        {html_content}
+                    </body>
+                    </html>
+                    """
 
-                        # 生成 PDF
-                        HTML(string=styled_html).write_pdf(pdf_path)
+                    # 生成 PDF
+                    with open(pdf_path, "w+b") as result_file:
+                        status = pisa.CreatePDF(styled_html, dest=result_file)
+
+                    # 檢查是否生成成功
+                    if not status.err:
                         logger.info(f"已儲存 PDF 報告到: {pdf_path}")
-
-                    except Exception as e:
-                        logger.error(f"生成 PDF 時發生錯誤: {e}")
+                    else:
+                        logger.error(f"生成 PDF 時發生錯誤: {status.err}")
                         pdf_path = None
 
             except Exception as e:

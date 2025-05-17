@@ -11,9 +11,52 @@ from app import db
 import os
 import json
 import datetime
+import requests
+import logging
 
 # 創建藍圖
 report = Blueprint('report', __name__)
+
+# 設定日誌
+logger = logging.getLogger(__name__)
+
+
+def get_available_ollama_models():
+    """
+    從 Ollama 伺服器獲取可用的模型列表
+
+    Returns:
+        list: 可用模型列表
+    """
+    default_models = ['phi4:14b', 'llama3', 'gemma:7b', 'mistral', 'qwen:14b']  # 預設模型列表
+
+    try:
+        # 獲取 Ollama 伺服器設定
+        ollama_host = current_app.config.get('DEFAULT_OLLAMA_HOST', 'localhost')
+        ollama_port = current_app.config.get('DEFAULT_OLLAMA_PORT', '11434')
+
+        # 構建請求 URL
+        url = f"http://{ollama_host}:{ollama_port}/api/tags"
+
+        # 發送請求
+        response = requests.get(url, timeout=3)
+
+        # 檢查回應狀態
+        if response.status_code == 200:
+            # 解析回應
+            data = response.json()
+            if 'models' in data:
+                # 提取模型名稱
+                models = [model['name'] for model in data['models']]
+                if models:
+                    return models
+
+        logger.warning(f"無法從 Ollama 伺服器獲取模型列表，使用預設值")
+        return default_models
+
+    except Exception as e:
+        logger.error(f"查詢 Ollama 模型時發生錯誤: {e}")
+        return default_models
 
 
 @report.route('/create/<int:transcript_id>', methods=['GET'])
@@ -27,7 +70,7 @@ def create_form(transcript_id):
     ).first_or_404()
 
     # 獲取 Ollama 模型列表
-    ollama_models = ['phi4:14b', 'llama3', 'gemma:7b', 'mistral', 'qwen:14b']
+    ollama_models = get_available_ollama_models()
 
     # 獲取預設提示詞
     default_system_prompt = current_app.config.get('DEFAULT_SYSTEM_PROMPT', '')

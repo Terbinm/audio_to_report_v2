@@ -1,0 +1,15 @@
+Werkzeug~=3.1.3
+Flask~=3.1.1
+Markdown~=3.8
+Flask-Login~=0.6.3
+pandas~=2.2.3
+requests~=2.32.3
+torch~=2.7.0+cu128
+openai-whisper~=20240930
+numpy~=2.2.5
+matplotlib~=3.10.3
+librosa~=0.11.0
+soundfile~=0.13.1
+pydub~=0.25.1
+Flask-Migrate~=4.1.0
+MarkupSafe~=3.0.2

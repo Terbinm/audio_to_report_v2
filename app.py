@@ -1,12 +1,16 @@
+# 修改 app.py 添加 Markdown 過濾器
+
 """
 Flask 應用入口點
 初始化 Flask 應用，設定藍圖 (Blueprints)，配置基本設定
 """
 from flask import Flask, redirect, url_for
+from markupsafe import Markup
 from flask_login import LoginManager, current_user
 import os
 from pathlib import Path
 import datetime
+import markdown
 
 # 從共享模組導入 db 和 migrate
 from extensions import db, migrate
@@ -45,6 +49,11 @@ def create_app(test_config=None):
     login_manager = LoginManager()
     login_manager.login_view = 'auth.login'
     login_manager.init_app(app)
+
+    # 註冊 Markdown 過濾器
+    @app.template_filter('markdown')
+    def render_markdown(text):
+        return Markup(markdown.markdown(text))
 
     # 從模型中引入 User 類並設定用戶加載函數
     from models.user import User
