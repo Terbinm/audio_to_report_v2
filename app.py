@@ -8,6 +8,7 @@ from flask_login import LoginManager, current_user
 from flask_migrate import Migrate
 import os
 from pathlib import Path
+import datetime
 
 # 初始化 SQLAlchemy，稍後連接到 app
 db = SQLAlchemy()
@@ -61,11 +62,11 @@ def create_app(test_config=None):
     from auth import auth as auth_blueprint
     app.register_blueprint(auth_blueprint)
 
-    # 準備好但稍後啟用的藍圖
-    # from routes.audio_routes import audio as audio_blueprint
-    # from routes.report_routes import report as report_blueprint
-    # app.register_blueprint(audio_blueprint)
-    # app.register_blueprint(report_blueprint)
+    # 註冊音訊和報告藍圖
+    from routes.audio_routes import audio as audio_blueprint
+    from routes.report_routes import report as report_blueprint
+    app.register_blueprint(audio_blueprint)
+    app.register_blueprint(report_blueprint)
 
     # 主頁路由重定向到儀表板
     @app.route('/')
@@ -82,6 +83,13 @@ def create_app(test_config=None):
     @app.errorhandler(500)
     def internal_server_error(e):
         return "服務器內部錯誤", 500
+
+    # 為所有模板添加全局變數
+    @app.context_processor
+    def inject_globals():
+        return {
+            'now': datetime.datetime.now()
+        }
 
     # 創建數據庫表格
     with app.app_context():

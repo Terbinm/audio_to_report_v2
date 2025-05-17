@@ -1,12 +1,12 @@
 """
-使用者認證模組
-處理登入、註冊和用戶管理功能
+處理登入和註冊頁面的 routes
 """
 from flask import Blueprint, render_template, redirect, url_for, request, flash
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import login_user, logout_user, login_required, current_user
 from models.user import User
 from app import db
+import datetime
 
 auth = Blueprint('auth', __name__)
 
@@ -31,8 +31,12 @@ def login_post():
 
     # 檢查密碼
     if not user or not check_password_hash(user.password, password):
-        flash('請檢查您的登入資訊並重試。')
+        flash('請檢查您的登入資訊並重試。', 'danger')
         return redirect(url_for('auth.login'))
+
+    # 更新最後登入時間
+    user.last_login = datetime.datetime.now()
+    db.session.commit()
 
     # 登入用戶
     login_user(user, remember=remember)
@@ -57,7 +61,7 @@ def register_post():
     # 檢查用戶是否已存在
     user = User.query.filter_by(email=email).first()
     if user:
-        flash('電子郵件地址已被註冊。')
+        flash('電子郵件地址已被註冊。', 'danger')
         return redirect(url_for('auth.register'))
 
     # 創建新用戶
@@ -72,7 +76,7 @@ def register_post():
     db.session.commit()
 
     # 重定向到登入頁面
-    flash('註冊成功，請登入。')
+    flash('註冊成功，請登入。', 'success')
     return redirect(url_for('auth.login'))
 
 
@@ -89,7 +93,17 @@ def logout():
 def dashboard():
     """用戶儀表板"""
     # 這裡將來會顯示用戶的音訊檔案和報告
-    return render_template('dashboard.html', name=current_user.name)
+    from models.db_models import AudioFile, Transcript, Report
+
+    audio_files = AudioFile.query.filter_by(user_id=current_user.id).order_by(AudioFile.created_at.desc()).limit(5)
+    transcripts = Transcript.query.join(AudioFile).filter(AudioFile.user_id == current_user.id).all()
+    reports = Report.query.filter_by(user_id=current_user.id).order_by(Report.created_at.desc()).limit(5)
+
+    return render_template('dashboard.html',
+                          name=current_user.name,
+                          audio_files=audio_files,
+                          transcripts=transcripts,
+                          reports=reports)
 
 
 @auth.route('/profile')
@@ -109,5 +123,5 @@ def profile_update():
     current_user.name = name
     db.session.commit()
 
-    flash('個人資料已更新。')
+    flash('個人資料已更新。', 'success')
     return redirect(url_for('auth.profile'))

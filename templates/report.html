@@ -1,174 +1,155 @@
 {% extends "base.html" %}
 
-{% block title %}處理音訊 - {{ config.SITE_TITLE }}{% endblock %}
+{% block title %}會議報告 - {{ config.SITE_TITLE }}{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/process.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/report.css') }}">
+<!-- Markdown CSS -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/github-markdown-css@5.2.0/github-markdown.min.css">
 {% endblock %}
 
-{% block page_title %}處理音訊{% endblock %}
+{% block page_title %}會議報告{% endblock %}
 
 {% block content %}
 <div class="row">
-    <div class="col-md-8 mx-auto">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">音訊處理進度</h5>
+    <!-- 報告顯示區 -->
+    <div class="col-md-9">
+        <div class="card report-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">{{ report.title }}</h5>
+                <div class="dropdown">
+                    <button class="btn btn-sm btn-outline-primary dropdown-toggle" type="button" id="actionDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="fas fa-ellipsis-v"></i>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="actionDropdown">
+                        <li><a class="dropdown-item" href="{{ url_for('report.edit_report', report_id=report.id) }}"><i class="fas fa-edit me-2"></i> 編輯報告</a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('report.download_report', report_id=report.id, format='markdown') }}"><i class="fas fa-download me-2"></i> 下載 Markdown</a></li>
+                        {% if has_pdf %}
+                        <li><a class="dropdown-item" href="{{ url_for('report.download_report', report_id=report.id, format='pdf') }}"><i class="fas fa-file-pdf me-2"></i> 下載 PDF</a></li>
+                        {% endif %}
+                        <li><hr class="dropdown-divider"></li>
+                        <li>
+                            <form action="{{ url_for('report.regenerate_report', report_id=report.id) }}" method="post" class="d-inline">
+                                <button type="submit" class="dropdown-item text-danger" data-confirm="確定要重新生成報告嗎？現有報告將被替換。">
+                                    <i class="fas fa-sync me-2"></i> 重新生成
+                                </button>
+                            </form>
+                        </li>
+                    </ul>
+                </div>
             </div>
             <div class="card-body">
-                <!-- 檔案資訊 -->
-                <div class="file-info mb-4">
-                    <div class="d-flex align-items-center">
-                        <div class="file-icon me-3">
-                            <i class="fas fa-file-audio fa-2x"></i>
-                        </div>
-                        <div class="file-details">
-                            <h5 class="mb-1">{{ audio_file.original_filename }}</h5>
-                            <p class="mb-0 text-muted">
-                                大小: <span id="fileSize">{{ audio_file.file_size | filesizeformat }}</span> |
-                                上傳時間: <span id="uploadTime">{{ audio_file.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</span>
-                            </p>
-                        </div>
-                    </div>
+                <!-- 報告內容 -->
+                <div class="markdown-body">
+                    {{ markdown_content | markdown }}
                 </div>
-
-                <!-- 處理參數 -->
-                <div class="process-params mb-4">
-                    <h6>處理參數</h6>
-                    <div class="row">
-                        <div class="col-md-4">
-                            <div class="param-item">
-                                <span class="param-label">轉錄模型</span>
-                                <span class="param-value">{{ audio_file.whisper_model }}</span>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="param-item">
-                                <span class="param-label">語言</span>
-                                <span class="param-value">{{ audio_file.language or '自動檢測' }}</span>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="param-item">
-                                <span class="param-label">說話者設定</span>
-                                <span class="param-value">
-                                    {% if audio_file.speakers_count %}
-                                    固定 {{ audio_file.speakers_count }} 位說話者
-                                    {% else %}
-                                    自動檢測 ({{ audio_file.speaker_min }}-{{ audio_file.speaker_max }} 位)
-                                    {% endif %}
-                                </span>
-                            </div>
-                        </div>
+            </div>
+            <div class="card-footer text-muted">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <i class="fas fa-calendar-alt"></i> 生成時間：{{ report.created_at.strftime('%Y-%m-%d %H:%M:%S') }}
                     </div>
-                </div>
-
-                <!-- 處理狀態 -->
-                <div class="process-status mb-4">
-                    <h6>處理狀態</h6>
-                    <div class="status-display">
-                        <div class="d-flex justify-content-between mb-2">
-                            <span id="statusText" class="status-text">
-                                {% if audio_file.status.value == 'pending' %}
-                                等待處理...
-                                {% elif audio_file.status.value == 'processing' %}
-                                處理中...
-                                {% elif audio_file.status.value == 'completed' %}
-                                處理完成
-                                {% elif audio_file.status.value == 'failed' %}
-                                處理失敗
-                                {% else %}
-                                {{ audio_file.status.value }}
-                                {% endif %}
-                            </span>
-                            <span id="progressPercent" class="progress-percent">{{ audio_file.progress | int }}%</span>
-                        </div>
-                        <div class="progress">
-                            <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: {{ audio_file.progress }}%"></div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 處理步驟 -->
-                <div class="process-steps">
-                    <h6>處理步驟</h6>
-                    <div class="steps-container">
-                        <div class="step-item" id="step1">
-                            <div class="step-icon">
-                                <i class="fas fa-cog"></i>
-                            </div>
-                            <div class="step-content">
-                                <h6 class="step-title">初始化和載入模型</h6>
-                                <p class="step-desc">載入 Whisper 和 Pyannote 模型</p>
-                                <div class="step-status"></div>
-                            </div>
-                        </div>
-
-                        <div class="step-item" id="step2">
-                            <div class="step-icon">
-                                <i class="fas fa-file-audio"></i>
-                            </div>
-                            <div class="step-content">
-                                <h6 class="step-title">預處理音訊檔案</h6>
-                                <p class="step-desc">檢查格式並準備處理</p>
-                                <div class="step-status"></div>
-                            </div>
-                        </div>
-
-                        <div class="step-item" id="step3">
-                            <div class="step-icon">
-                                <i class="fas fa-microphone"></i>
-                            </div>
-                            <div class="step-content">
-                                <h6 class="step-title">執行語音轉文字</h6>
-                                <p class="step-desc">使用 Whisper 模型轉錄音訊</p>
-                                <div class="step-status"></div>
-                            </div>
-                        </div>
-
-                        <div class="step-item" id="step4">
-                            <div class="step-icon">
-                                <i class="fas fa-users"></i>
-                            </div>
-                            <div class="step-content">
-                                <h6 class="step-title">執行說話者分割</h6>
-                                <p class="step-desc">識別不同說話者並標記</p>
-                                <div class="step-status"></div>
-                            </div>
-                        </div>
-
-                        <div class="step-item" id="step5">
-                            <div class="step-icon">
-                                <i class="fas fa-file-alt"></i>
-                            </div>
-                            <div class="step-content">
-                                <h6 class="step-title">整合結果並生成輸出</h6>
-                                <p class="step-desc">生成轉錄文件與可視化圖表</p>
-                                <div class="step-status"></div>
-                            </div>
-                        </div>
+                    <div>
+                        <i class="fas fa-robot"></i> 使用模型：{{ report.ollama_model }}
                     </div>
                 </div>
             </div>
-            <div class="card-footer text-center">
-                <div id="actionButtons">
-                    {% if audio_file.status.value == 'completed' %}
-                    <a href="{{ url_for('audio.view_transcript', transcript_id=transcript.id if transcript else 0) }}" class="btn btn-success">
-                        <i class="fas fa-eye me-2"></i> 查看轉錄結果
-                    </a>
-                    {% elif audio_file.status.value == 'failed' %}
-                    <div class="alert alert-danger">
-                        處理失敗: {{ audio_file.error_message }}
+        </div>
+    </div>
+
+    <!-- 側邊資訊欄 -->
+    <div class="col-md-3">
+        <!-- 音訊資訊卡片 -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h6 class="mb-0">音訊檔案</h6>
+            </div>
+            <div class="card-body">
+                <div class="d-flex align-items-center mb-2">
+                    <i class="fas fa-file-audio me-2 text-primary"></i>
+                    <div>{{ audio_file.original_filename }}</div>
+                </div>
+                <div class="small text-muted">
+                    <div><i class="fas fa-clock me-1"></i> 時長：{{ audio_file.duration | default('N/A') }} 秒</div>
+                    <div><i class="fas fa-calendar me-1"></i> 上傳：{{ audio_file.created_at.strftime('%Y-%m-%d') }}</div>
+                </div>
+                <hr>
+                <a href="{{ url_for('audio.view_transcript', transcript_id=transcript.id) }}" class="btn btn-sm btn-outline-primary d-block">
+                    <i class="fas fa-file-alt me-1"></i> 查看轉錄內容
+                </a>
+            </div>
+        </div>
+
+        <!-- 報告資訊卡片 -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h6 class="mb-0">報告資訊</h6>
+            </div>
+            <div class="card-body">
+                <div class="info-item">
+                    <span class="info-label">狀態</span>
+                    <span class="badge status-badge status-{{ report.status.value }}">{{ report.status.value }}</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">建立者</span>
+                    <span class="info-value">{{ current_user.name }}</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">建立時間</span>
+                    <span class="info-value">{{ report.created_at.strftime('%Y-%m-%d %H:%M') }}</span>
+                </div>
+                {% if report.completed_at %}
+                <div class="info-item">
+                    <span class="info-label">完成時間</span>
+                    <span class="info-value">{{ report.completed_at.strftime('%Y-%m-%d %H:%M') }}</span>
+                </div>
+                {% endif %}
+                <hr>
+                <div class="info-item">
+                    <span class="info-label">使用模型</span>
+                    <span class="info-value">{{ report.ollama_model }}</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">報告格式</span>
+                    <div class="mt-1">
+                        <span class="badge bg-primary me-1">Markdown</span>
+                        {% if has_pdf %}
+                        <span class="badge bg-danger">PDF</span>
+                        {% endif %}
                     </div>
-                    <a href="{{ url_for('audio.upload_form') }}" class="btn btn-primary">
-                        <i class="fas fa-upload me-2"></i> 重新上傳
+                </div>
+            </div>
+        </div>
+
+        <!-- 操作卡片 -->
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">操作</h6>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="{{ url_for('report.edit_report', report_id=report.id) }}" class="btn btn-outline-primary">
+                        <i class="fas fa-edit me-1"></i> 編輯報告
                     </a>
-                    {% else %}
-                    <div class="spinner-border text-primary" role="status">
-                        <span class="visually-hidden">Loading...</span>
+                    <div class="btn-group">
+                        <a href="{{ url_for('report.download_report', report_id=report.id, format='markdown') }}" class="btn btn-outline-success">
+                            <i class="fas fa-download me-1"></i> 下載 Markdown
+                        </a>
+                        <button type="button" class="btn btn-outline-success dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false">
+                            <span class="visually-hidden">Toggle Dropdown</span>
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{{ url_for('report.download_report', report_id=report.id, format='markdown') }}">Markdown 格式</a></li>
+                            {% if has_pdf %}
+                            <li><a class="dropdown-item" href="{{ url_for('report.download_report', report_id=report.id, format='pdf') }}">PDF 格式</a></li>
+                            {% endif %}
+                        </ul>
                     </div>
-                    <p class="mt-2 mb-0">處理中，請稍候...</p>
-                    {% endif %}
+                    <form action="{{ url_for('report.regenerate_report', report_id=report.id) }}" method="post">
+                        <button type="submit" class="btn btn-outline-danger d-block w-100" data-confirm="確定要重新生成報告嗎？現有報告將被替換。">
+                            <i class="fas fa-sync me-1"></i> 重新生成報告
+                        </button>
+                    </form>
                 </div>
             </div>
         </div>
@@ -177,16 +158,6 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{{ url_for('static', filename='js/process.js') }}"></script>
-<script>
-    // 初始化進度檢查
-    document.addEventListener('DOMContentLoaded', function() {
-        // 初始化進度檢查
-        const audioId = {{ audio_file.id }};
-        const initialStatus = "{{ audio_file.status.value }}";
-        const initialProgress = {{ audio_file.progress }};
-
-        initProcessMonitor(audioId, initialStatus, initialProgress);
-    });
-</script>
+<script src="{{ url_for('static', filename='js/report.js') }}"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 {% endblock %}
