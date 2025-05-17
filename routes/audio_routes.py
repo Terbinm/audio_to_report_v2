@@ -228,7 +228,7 @@ def check_processing_status(audio_id):
 def list_transcripts():
     """列出用戶的所有轉錄記錄"""
     transcripts = Transcript.query.join(AudioFile).filter(AudioFile.user_id == current_user.id).all()
-    return render_template('transcripts.html', transcripts=transcripts)
+    return render_template('transcripts_list.html', transcripts=transcripts)
 
 
 @audio.route('/transcript/<int:transcript_id>')

@@ -410,21 +410,13 @@ class AudioProcessor:
             logger.info(f"使用 Pyannote 進行說話者分割: {audio_path}")
             logger.info(f"分割選項: {diarization_options}")
 
-            # 使用 ProgressHook 追蹤進度
-            with ProgressHook() as hook:
-                diarization_result = self.diarization_pipeline(
-                    audio_path,
-                    hook=hook,
-                    **diarization_options
-                )
-                # 在處理過程中更新進度
-                last_progress = 0
-                while hook.completed < 1.0:
-                    progress = int(hook.completed * 90)  # 最多到 90%
-                    if progress > last_progress:
-                        self.reporter.update_step_progress(progress, f"說話者分割進度: {progress}%")
-                        last_progress = progress
+            # 直接執行分割，不使用 ProgressHook
+            diarization_result = self.diarization_pipeline(
+                audio_path,
+                **diarization_options
+            )
 
+            # 更新進度為100%
             self.reporter.update_step_progress(100, "說話者分割完成")
             logger.info("說話者分割完成")
 

@@ -125,3 +125,34 @@ def profile_update():
 
     flash('個人資料已更新。', 'success')
     return redirect(url_for('auth.profile'))
+
+
+@auth.route('/change_password', methods=['POST'])
+@login_required
+def change_password():
+    """變更用戶密碼"""
+    current_password = request.form.get('current_password')
+    new_password = request.form.get('new_password')
+    confirm_password = request.form.get('confirm_password')
+
+    # 檢查新密碼是否匹配
+    if new_password != confirm_password:
+        flash('新密碼與確認密碼不匹配', 'danger')
+        return redirect(url_for('auth.profile'))
+
+    # 檢查新密碼長度
+    if len(new_password) < 6:
+        flash('新密碼長度必須至少 6 個字元', 'danger')
+        return redirect(url_for('auth.profile'))
+
+    # 檢查當前密碼是否正確
+    if not check_password_hash(current_user.password, current_password):
+        flash('當前密碼不正確', 'danger')
+        return redirect(url_for('auth.profile'))
+
+    # 更新密碼
+    current_user.password = generate_password_hash(new_password, method='pbkdf2:sha256')
+    db.session.commit()
+
+    flash('密碼已成功更新', 'success')
+    return redirect(url_for('auth.profile'))
