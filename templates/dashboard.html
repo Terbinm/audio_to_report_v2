@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+
+{% block title %}儀表板 - {{ config.SITE_TITLE }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+{% endblock %}
+
+{% block page_title %}儀表板{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- 歡迎卡片 -->
+    <div class="col-12 mb-4">
+        <div class="card welcome-card">
+            <div class="card-body">
+                <h2 class="card-title">歡迎回來，{{ current_user.name }}！</h2>
+                <p class="card-text">最後登入時間: {{ current_user.last_login.strftime('%Y-%m-%d %H:%M:%S') if current_user.last_login else '這是您的首次登入' }}</p>
+                <a href="{{ url_for('audio.upload_form') }}" class="btn btn-primary">
+                    <i class="fas fa-upload"></i> 上傳新音訊
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- 概覽統計卡片 -->
+    <div class="col-md-4 mb-4">
+        <div class="card stats-card">
+            <div class="card-body">
+                <div class="stats-icon bg-primary">
+                    <i class="fas fa-file-audio"></i>
+                </div>
+                <h5 class="card-title">音訊檔案</h5>
+                <h3 class="stats-number">{{ audio_files.count() if audio_files else 0 }}</h3>
+                <p class="stats-text">已上傳的音訊檔案</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4 mb-4">
+        <div class="card stats-card">
+            <div class="card-body">
+                <div class="stats-icon bg-success">
+                    <i class="fas fa-file-alt"></i>
+                </div>
+                <h5 class="card-title">轉錄記錄</h5>
+                <h3 class="stats-number">{{ transcripts.count() if transcripts else 0 }}</h3>
+                <p class="stats-text">已完成的轉錄</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4 mb-4">
+        <div class="card stats-card">
+            <div class="card-body">
+                <div class="stats-icon bg-info">
+                    <i class="fas fa-file-pdf"></i>
+                </div>
+                <h5 class="card-title">生成報告</h5>
+                <h3 class="stats-number">{{ reports.count() if reports else 0 }}</h3>
+                <p class="stats-text">已生成的報告</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 最新音訊檔案 -->
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">最新音訊檔案</h5>
+                <a href="{{ url_for('audio.list_transcripts') }}" class="btn btn-sm btn-outline-primary">查看全部</a>
+            </div>
+            <div class="card-body">
+                {% if audio_files %}
+                <div class="list-group list-group-flush">
+                    {% for audio in audio_files %}
+                    <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-1">{{ audio.original_filename }}</h6>
+                            <small class="text-muted">
+                                上傳時間: {{ audio.created_at.strftime('%Y-%m-%d %H:%M') }}
+                            </small>
+                        </div>
+                        <div>
+                            <span class="badge status-badge status-{{ audio.status.value }}">{{ audio.status.value }}</span>
+                            <a href="{{ url_for('audio.process', audio_id=audio.id) }}" class="btn btn-sm btn-primary">
+                                <i class="fas fa-arrow-right"></i>
+                            </a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <p class="text-muted">您尚未上傳任何音訊檔案</p>
+                    <a href="{{ url_for('audio.upload_form') }}" class="btn btn-primary">
+                        <i class="fas fa-upload"></i> 上傳音訊
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- 最新報告 -->
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">最新報告</h5>
+                <a href="{{ url_for('report.list_reports') }}" class="btn btn-sm btn-outline-primary">查看全部</a>
+            </div>
+            <div class="card-body">
+                {% if reports %}
+                <div class="list-group list-group-flush">
+                    {% for report in reports %}
+                    <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-1">{{ report.title }}</h6>
+                            <small class="text-muted">
+                                生成時間: {{ report.created_at.strftime('%Y-%m-%d %H:%M') }}
+                            </small>
+                        </div>
+                        <div>
+                            <span class="badge status-badge status-{{ report.status.value }}">{{ report.status.value }}</span>
+                            <a href="{{ url_for('report.view_report', report_id=report.id) }}" class="btn btn-sm btn-primary">
+                                <i class="fas fa-eye"></i>
+                            </a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <p class="text-muted">您尚未生成任何報告</p>
+                    {% if transcripts %}
+                    <a href="{{ url_for('audio.list_transcripts') }}" class="btn btn-primary">
+                        <i class="fas fa-file-alt"></i> 查看轉錄記錄
+                    </a>
+                    {% else %}
+                    <a href="{{ url_for('audio.upload_form') }}" class="btn btn-primary">
+                        <i class="fas fa-upload"></i> 上傳音訊
+                    </a>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+
+{% block title %}上傳音訊 - {{ config.SITE_TITLE }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/upload.css') }}">
+{% endblock %}
+
+{% block page_title %}上傳音訊{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">上傳音訊檔案</h5>
+            </div>
+            <div class="card-body">
+                <form action="{{ url_for('audio.upload_audio') }}" method="post" enctype="multipart/form-data" id="uploadForm" class="needs-validation" novalidate>
+                    <!-- 檔案上傳區域 -->
+                    <div class="mb-4">
+                        <label for="audio_file" class="form-label">音訊檔案</label>
+                        <div class="upload-drop-zone" id="drop-zone">
+                            <div class="upload-icon">
+                                <i class="fas fa-cloud-upload-alt"></i>
+                            </div>
+                            <div class="upload-text">
+                                <p>拖曳檔案至此處或點擊選擇檔案</p>
+                                <p class="small text-muted">
+                                    支援格式: {{ ', '.join(config.ALLOWED_EXTENSIONS) | upper }}<br>
+                                    最大檔案大小: {{ (config.MAX_CONTENT_LENGTH / 1024 / 1024) | int }} MB
+                                </p>
+                            </div>
+                            <input type="file" name="audio_file" id="audio_file" class="upload-input" accept="{{ '.'+ext for ext in config.ALLOWED_EXTENSIONS | join(',.')}}" required>
+                        </div>
+                        <div class="selected-file mt-2" style="display: none;">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-file-audio me-2"></i>
+                                <span class="file-name"></span>
+                                <span class="file-size ms-2 text-muted"></span>
+                                <button type="button" class="btn-close ms-auto remove-file" aria-label="移除檔案"></button>
+                            </div>
+                            <div class="progress mt-2" style="display: none;">
+                                <div class="progress-bar" role="progressbar" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        <div class="invalid-feedback">請選擇音訊檔案</div>
+                    </div>
+
+                    <h5 class="mb-3">處理選項</h5>
+
+                    <!-- 轉錄模型選項 -->
+                    <div class="mb-3">
+                        <label for="whisper_model" class="form-label">轉錄模型</label>
+                        <select class="form-select" id="whisper_model" name="whisper_model">
+                            <option value="tiny" {% if default_whisper_model == 'tiny' %}selected{% endif %}>Tiny (最快，但準確度較低)</option>
+                            <option value="base" {% if default_whisper_model == 'base' %}selected{% endif %}>Base (速度與準確度平衡)</option>
+                            <option value="small" {% if default_whisper_model == 'small' %}selected{% endif %}>Small (準確度較佳)</option>
+                            <option value="medium" {% if default_whisper_model == 'medium' %}selected{% endif %}>Medium (較高準確度，但較慢)</option>
+                            <option value="large" {% if default_whisper_model == 'large' %}selected{% endif %}>Large (最高準確度，但最慢)</option>
+                        </select>
+                        <div class="form-text">選擇較大的模型可提高轉錄準確度，但處理時間會更長</div>
+                    </div>
+
+                    <!-- 語言選項 -->
+                    <div class="mb-3">
+                        <label for="language" class="form-label">語言</label>
+                        <select class="form-select" id="language" name="language">
+                            <option value="" {% if not default_language %}selected{% endif %}>自動檢測</option>
+                            <option value="zh" {% if default_language == 'zh' %}selected{% endif %}>中文</option>
+                            <option value="en" {% if default_language == 'en' %}selected{% endif %}>英文</option>
+                            <option value="ja" {% if default_language == 'ja' %}selected{% endif %}>日文</option>
+                            <option value="ko" {% if default_language == 'ko' %}selected{% endif %}>韓文</option>
+                        </select>
+                        <div class="form-text">指定音訊的主要語言可提高轉錄準確度</div>
+                    </div>
+
+                    <!-- 說話者分割選項 -->
+                    <div class="mb-3">
+                        <label class="form-label">說話者分割選項</label>
+                        <div class="d-flex">
+                            <div class="form-check me-4">
+                                <input class="form-check-input" type="radio" name="speaker_option" id="speaker_auto" value="auto" checked>
+                                <label class="form-check-label" for="speaker_auto">自動檢測</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="speaker_option" id="speaker_fixed" value="fixed">
+                                <label class="form-check-label" for="speaker_fixed">指定說話者數量</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 自動檢測範圍 -->
+                    <div class="mb-3 speaker-auto-options">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label for="speaker_min" class="form-label">最小說話者數量</label>
+                                <input type="number" class="form-control" id="speaker_min" name="speaker_min" value="{{ default_speaker_min }}" min="1" max="20">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="speaker_max" class="form-label">最大說話者數量</label>
+                                <input type="number" class="form-control" id="speaker_max" name="speaker_max" value="{{ default_speaker_max }}" min="1" max="20">
+                            </div>
+                        </div>
+                        <div class="form-text">系統會在這個範圍內自動檢測最佳的說話者數量</div>
+                    </div>
+
+                    <!-- 固定說話者數量 -->
+                    <div class="mb-3 speaker-fixed-options" style="display: none;">
+                        <label for="speakers_count" class="form-label">說話者數量</label>
+                        <input type="number" class="form-control" id="speakers_count" name="speakers_count" value="2" min="1" max="20">
+                        <div class="form-text">指定錄音中的說話者數量</div>
+                    </div>
+
+                    <!-- 提交按鈕 -->
+                    <div class="text-center mt-4">
+                        <button type="submit" class="btn btn-primary btn-lg" id="submitBtn" disabled>
+                            <i class="fas fa-cogs me-2"></i> 開始處理
+                        </button>
+                    </div>
+                </form>
+            </div>
+            <div class="card-footer">
+                <div class="small text-muted">
+                    * 處理時間取決於音訊檔案大小、選擇的模型和設備性能
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/upload.js') }}"></script>
+{% endblock %}

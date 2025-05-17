@@ -52,7 +52,7 @@ audio_to_report/
 │   │   ├── login.html
 │   │   └── register.html
 │   ├── dashboard.html  # 儀表板頁面
-│   ├── layout.html     # 基本版面
+│   ├── base.html  # 模板頁面
 │   ├── upload.html     # 上傳頁面
 │   ├── process.html    # 處理頁面
 │   └── report.html     # 報告頁面
@@ -61,12 +61,12 @@ audio_to_report/
 │   ├── transcripts/    # 轉錄結果
 │   ├── visualizations/ # 可視化結果
 │   └── reports/        # 生成的報告
-├── utils/
-│   ├── __init__.py
-│   ├── file_utils.py   # 檔案處理工具
-│   └── stream_helpers.py # 串流處理工具
-├── requirements.txt    # 相依套件
-└── README.md           # 說明文件
+├── utils/X
+│   ├── __init__.pyX
+│   ├── file_utils.py   # 檔案處理工具X
+│   └── stream_helpers.py # 串流處理工具X
+├── requirements.txt    # 相依套件X
+└── README.md           # 說明文件X
 ```
 
 ## 核心功能模組

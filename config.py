@@ -10,6 +10,14 @@ from pathlib import Path
 SECRET_KEY = os.environ.get('SECRET_KEY') or 'your-secret-key-here'
 DEBUG = True
 
+# 使用者認證相關配置
+AUTH_USERS_ENABLED = True  # 是否啟用用戶認證系統
+SESSION_LIFETIME = 24  # 會話生命週期 (小時)
+
+# 網站配置
+SITE_TITLE = "音訊轉報告系統"
+SITE_DESCRIPTION = "將會議音訊轉換為結構化會議報告"
+
 # 資料庫配置
 SQLALCHEMY_DATABASE_URI = 'sqlite:///audio_to_report.db'
 SQLALCHEMY_TRACK_MODIFICATIONS = False
@@ -30,12 +38,11 @@ REPORT_FOLDER = os.path.join(OUTPUT_FOLDER, 'reports')
 STATIC_OUTPUT_FOLDER = os.path.join(BASE_DIR, 'static', 'outputs')
 STATIC_VISUALIZATION_FOLDER = os.path.join(STATIC_OUTPUT_FOLDER, 'visualizations')
 
-
-####################預設配置######################
 # 音訊轉錄配置
 DEFAULT_WHISPER_MODEL = "large"  # 可選: tiny, base, small, medium, large
 DEFAULT_LANGUAGE = "zh"  # 語言代碼 (例如: zh, en)，若為 None 則自動檢測
 DEVICE = "cuda"  # 計算設備 (cpu 或 cuda)，若為 None 則自動選擇
+PREPROCESS_AUDIO = True  # 是否自動預處理音訊(轉換聲道等)
 
 # 說話者分割選項(預設)
 DEFAULT_SPEAKERS_COUNT = None  # 固定的說話者數量，例如: 2
@@ -45,12 +52,17 @@ DEFAULT_VISUALIZE = True  # 是否生成說話者分割的可視化圖表
 
 # HuggingFace token 用於下載分割模型
 # 可以通過環境變數設定
-DEFAULT_HF_TOKEN = "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"
+DEFAULT_HF_TOKEN = os.environ.get('HF_TOKEN') or "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"
 
 # Ollama LLM 配置
-DEFAULT_OLLAMA_HOST = "192.168.1.14"  # Ollama 主機地址
-DEFAULT_OLLAMA_PORT = "11434"  # Ollama 端口
-DEFAULT_OLLAMA_MODEL = "phi4:14b"  # 預設模型
+DEFAULT_OLLAMA_HOST = os.environ.get('OLLAMA_HOST') or "192.168.1.14"  # Ollama 主機地址
+DEFAULT_OLLAMA_PORT = os.environ.get('OLLAMA_PORT') or "11434"  # Ollama 端口
+DEFAULT_OLLAMA_MODEL = os.environ.get('OLLAMA_MODEL') or "phi4:14b"  # 預設模型
+
+# 報告生成配置
+MAX_REPORT_TOKENS = 4000  # 報告生成的最大 token 數量
+REPORT_STREAM_CHUNK_SIZE = 50  # 每次從 LLM 獲取的 token 數量
+REPORT_FORMATS = ["markdown", "pdf"]  # 支援的報告格式
 
 # 系統提示詞（用於 LLM 生成報告）
 DEFAULT_SYSTEM_PROMPT = """

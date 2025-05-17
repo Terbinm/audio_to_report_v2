@@ -1,0 +1,196 @@
+/* 處理頁面樣式 */
+
+/* 檔案資訊區塊 */
+.file-info {
+    padding: 1rem;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+}
+
+.file-icon {
+    color: #0d6efd;
+}
+
+.file-details h5 {
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+}
+
+/* 處理參數區塊 */
+.process-params {
+    margin-top: 1.5rem;
+}
+
+.process-params h6,
+.process-status h6,
+.process-steps h6 {
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+    color: #495057;
+}
+
+.param-item {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 0.75rem;
+}
+
+.param-label {
+    font-size: 0.85rem;
+    color: #6c757d;
+}
+
+.param-value {
+    font-weight: 500;
+}
+
+/* 處理狀態區塊 */
+.process-status {
+    margin-top: 1.5rem;
+}
+
+.status-display {
+    background-color: #f8f9fa;
+    padding: 1rem;
+    border-radius: 8px;
+}
+
+.status-text {
+    font-weight: 500;
+}
+
+.progress-percent {
+    font-weight: 600;
+}
+
+.progress {
+    height: 0.75rem;
+    border-radius: 3px;
+}
+
+/* 處理步驟區塊 */
+.process-steps {
+    margin-top: 1.5rem;
+}
+
+.steps-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.step-item {
+    display: flex;
+    align-items: flex-start;
+    padding: 1rem;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+}
+
+.step-item.active {
+    background-color: rgba(13, 110, 253, 0.1);
+    border-left: 4px solid #0d6efd;
+}
+
+.step-item.completed {
+    background-color: rgba(25, 135, 84, 0.1);
+    border-left: 4px solid #198754;
+}
+
+.step-item.failed {
+    background-color: rgba(220, 53, 69, 0.1);
+    border-left: 4px solid #dc3545;
+}
+
+.step-icon {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 40px;
+    height: 40px;
+    background-color: #e9ecef;
+    border-radius: 50%;
+    margin-right: 1rem;
+    color: #6c757d;
+}
+
+.step-item.active .step-icon {
+    background-color: #0d6efd;
+    color: white;
+}
+
+.step-item.completed .step-icon {
+    background-color: #198754;
+    color: white;
+}
+
+.step-item.failed .step-icon {
+    background-color: #dc3545;
+    color: white;
+}
+
+.step-content {
+    flex: 1;
+}
+
+.step-title {
+    margin-bottom: 0.25rem;
+    font-weight: 600;
+}
+
+.step-desc {
+    margin-bottom: 0;
+    color: #6c757d;
+    font-size: 0.9rem;
+}
+
+.step-status {
+    font-size: 0.85rem;
+    margin-top: 0.5rem;
+}
+
+/* 卡片頁腳 */
+.card-footer {
+    background-color: #f8f9fa;
+    border-top: 1px solid rgba(0, 0, 0, 0.05);
+    padding: 1rem;
+}
+
+/* 卡片 */
+.card {
+    border: none;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+    margin-bottom: 2rem;
+}
+
+.card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    font-weight: 600;
+}
+
+/* 響應式調整 */
+@media (max-width: 768px) {
+    .param-item {
+        margin-bottom: 1rem;
+    }
+
+    .step-item {
+        padding: 0.75rem;
+    }
+
+    .step-icon {
+        width: 32px;
+        height: 32px;
+        font-size: 0.9rem;
+    }
+
+    .step-title {
+        font-size: 0.95rem;
+    }
+
+    .step-desc {
+        font-size: 0.85rem;
+    }
+}

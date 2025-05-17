@@ -1,0 +1,155 @@
+/* 儀表板樣式 */
+
+/* 歡迎卡片 */
+.welcome-card {
+    background: linear-gradient(135deg, #0d6efd, #0b5ed7);
+    color: white;
+    border: none;
+    box-shadow: 0 4px 12px rgba(13, 110, 253, 0.15);
+}
+
+.welcome-card .card-title {
+    font-size: 1.75rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.welcome-card .btn {
+    background-color: white;
+    color: #0d6efd;
+    border: none;
+    font-weight: 500;
+    padding: 0.5rem 1.25rem;
+    margin-top: 1rem;
+}
+
+.welcome-card .btn:hover {
+    background-color: rgba(255, 255, 255, 0.9);
+}
+
+/* 統計卡片 */
+.stats-card {
+    height: 100%;
+    border: none;
+    border-radius: 12px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.stats-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+.stats-card .card-body {
+    padding: 1.5rem;
+    text-align: center;
+}
+
+.stats-icon {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    font-size: 1.5rem;
+    color: white;
+    margin: 0 auto 1rem;
+}
+
+.bg-primary {
+    background-color: #0d6efd;
+}
+
+.bg-success {
+    background-color: #198754;
+}
+
+.bg-info {
+    background-color: #0dcaf0;
+}
+
+.stats-number {
+    font-size: 2.25rem;
+    font-weight: 700;
+    margin: 0.5rem 0;
+}
+
+.stats-text {
+    color: #6c757d;
+    font-size: 0.9rem;
+}
+
+/* 列表樣式 */
+.list-group-item {
+    border-left: none;
+    border-right: none;
+    padding: 0.75rem 1.25rem;
+}
+
+.list-group-item:first-child {
+    border-top: none;
+}
+
+.list-group-item:last-child {
+    border-bottom: none;
+}
+
+.list-group-item h6 {
+    margin-bottom: 0.25rem;
+    font-weight: 600;
+}
+
+.list-group-item .text-muted {
+    font-size: 0.85rem;
+}
+
+/* 狀態徽章 */
+.status-badge {
+    padding: 0.35em 0.65em;
+    border-radius: 50px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-right: 0.5rem;
+}
+
+.status-pending {
+    background-color: #f8f9fa;
+    color: #6c757d;
+}
+
+.status-processing {
+    background-color: #cff4fc;
+    color: #055160;
+}
+
+.status-completed {
+    background-color: #d1e7dd;
+    color: #0f5132;
+}
+
+.status-failed {
+    background-color: #f8d7da;
+    color: #842029;
+}
+
+.status-generating {
+    background-color: #fff3cd;
+    color: #664d03;
+}
+
+/* 響應式調整 */
+@media (max-width: 768px) {
+    .stats-card {
+        margin-bottom: 1rem;
+    }
+
+    .welcome-card .card-title {
+        font-size: 1.5rem;
+    }
+
+    .stats-number {
+        font-size: 1.75rem;
+    }
+}
