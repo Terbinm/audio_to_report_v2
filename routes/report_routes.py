@@ -2,8 +2,11 @@
 報告生成相關路由
 處理報告生成、編輯和下載功能
 """
+import json
+import time
+
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app, \
-    send_from_directory
+    send_from_directory, Response
 from flask_login import login_required, current_user
 from models.db_models import Report, Transcript, AudioFile, ReportStatus
 from processors.report_generator import create_report_generator
@@ -246,27 +249,42 @@ def check_generating_status(report_id):
 @report.route('/stream/<int:report_id>')
 @login_required
 def stream_report(report_id):
-    """串流獲取報告生成內容 (用於 SSE)"""
-    # 這個函數實際上只返回一個靜態 JSON
-    # 實際的串流處理在前端通過 WebSocket 或 Server-Sent Events 實現
-    Report.query.filter_by(id=report_id, user_id=current_user.id).first_or_404()
+    """
+    使用 Server-Sent Events (SSE) 串流獲取報告生成內容
+    這個端點用於建立持久連接，實時推送 LLM 生成的內容到前端
+    """
+    # 檢查報告是否存在且屬於當前用戶
+    report_entry = Report.query.filter_by(id=report_id, user_id=current_user.id).first_or_404()
 
     # 創建報告生成器 (但不啟動生成)
     generator = create_report_generator(report_id)
 
-    # 嘗試獲取一條訊息
-    message = generator.get_messages(timeout=0.1)
+    def generate_events():
+        """生成 SSE 事件"""
+        while True:
+            # 嘗試獲取一條訊息
+            message = generator.get_messages(timeout=0.1)
 
-    if message:
-        return jsonify({
-            'status': 'ok',
-            'chunk': message
-        })
-    else:
-        return jsonify({
-            'status': 'empty',
-            'chunk': ''
-        })
+            if message:
+                # 將消息格式化為 SSE 事件
+                yield f"data: {json.dumps({'chunk': message})}\n\n"
+            elif report_entry.status == ReportStatus.COMPLETED:
+                # 如果報告已完成生成，發送結束事件
+                yield "event: done\ndata: done\n\n"
+                break
+            elif report_entry.status == ReportStatus.FAILED:
+                # 如果報告生成失敗，發送錯誤事件
+                yield f"event: error\ndata: {report_entry.error_message}\n\n"
+                break
+            else:
+                # 保持連接活躍
+                yield f"data: {json.dumps({'heartbeat': True})}\n\n"
+
+            # 暫停一小段時間，避免過於頻繁的檢查
+            time.sleep(0.2)
+
+    # 返回串流響應
+    return Response(generate_events(), mimetype='text/event-stream')
 
 
 @report.route('/reports')
@@ -473,3 +491,5 @@ def regenerate_report(report_id):
 
     # 開始重新生成
     return redirect(url_for('report.generate', report_id=report_id))
+
+

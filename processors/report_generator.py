@@ -102,15 +102,15 @@ class ReportGenerator:
 
         # 設定相關路徑
         self.app_config = current_app.config
-
-        # 獲取上傳 ID (從轉錄檔案路徑的目錄名稱)
-        self.upload_id = os.path.basename(os.path.dirname(self.transcript.csv_path))
-
-        # 設定報告輸出目錄為上傳 ID 專屬的子目錄
-        self.report_dir = os.path.join(self.app_config['REPORT_FOLDER'], self.upload_id)
+        self.report_dir = self.app_config['REPORT_FOLDER']
 
         # 確保輸出目錄存在
         os.makedirs(self.report_dir, exist_ok=True)
+
+        # 確保調試目錄存在
+        debug_dir = self.app_config.get('REPORT_DEBUG_FOLDER')
+        if debug_dir:
+            os.makedirs(debug_dir, exist_ok=True)
 
         # 設定進度訊息佇列和結果
         self.message_queue = queue.Queue()
@@ -150,12 +150,6 @@ class ReportGenerator:
 
         return True
 
-    def get_messages(self, timeout=0.1):
-        """獲取生成過程中的進度訊息"""
-        try:
-            return self.message_queue.get(timeout=timeout)
-        except queue.Empty:
-            return None
 
     def _generate_report(self):
         """生成報告的主要方法"""
@@ -265,14 +259,28 @@ class ReportGenerator:
             # 準備 API 請求
             self.reporter.update_step_progress(20, f"連接 Ollama 服務 ({self.ollama_host}:{self.ollama_port})")
 
-            # 從設定檔獲取生成參數
-            temperature = self.report.temperature or self.app_config.get('DEFAULT_TEMPERATURE')
-            top_p = self.report.top_p or self.app_config.get('DEFAULT_TOP_P')
-            top_k = self.report.top_k or self.app_config.get('DEFAULT_TOP_K')
-            frequency_penalty = self.report.frequency_penalty or self.app_config.get('DEFAULT_FREQUENCY_PENALTY')
-            presence_penalty = self.report.presence_penalty or self.app_config.get('DEFAULT_PRESENCE_PENALTY')
-            repeat_penalty = self.report.repeat_penalty or self.app_config.get('DEFAULT_REPEAT_PENALTY')
-            seed = self.report.seed or self.app_config.get('DEFAULT_SEED')
+            # 從報告或設定檔獲取生成參數
+            temperature = self.report.temperature if hasattr(self.report,
+                                                             'temperature') and self.report.temperature is not None else self.app_config.get(
+                'DEFAULT_TEMPERATURE')
+            top_p = self.report.top_p if hasattr(self.report,
+                                                 'top_p') and self.report.top_p is not None else self.app_config.get(
+                'DEFAULT_TOP_P')
+            top_k = self.report.top_k if hasattr(self.report,
+                                                 'top_k') and self.report.top_k is not None else self.app_config.get(
+                'DEFAULT_TOP_K')
+            frequency_penalty = self.report.frequency_penalty if hasattr(self.report,
+                                                                         'frequency_penalty') and self.report.frequency_penalty is not None else self.app_config.get(
+                'DEFAULT_FREQUENCY_PENALTY')
+            presence_penalty = self.report.presence_penalty if hasattr(self.report,
+                                                                       'presence_penalty') and self.report.presence_penalty is not None else self.app_config.get(
+                'DEFAULT_PRESENCE_PENALTY')
+            repeat_penalty = self.report.repeat_penalty if hasattr(self.report,
+                                                                   'repeat_penalty') and self.report.repeat_penalty is not None else self.app_config.get(
+                'DEFAULT_REPEAT_PENALTY')
+            seed = self.report.seed if hasattr(self.report,
+                                               'seed') and self.report.seed is not None else self.app_config.get(
+                'DEFAULT_SEED')
 
             headers = {"Content-Type": "application/json"}
             data = {
@@ -284,22 +292,28 @@ class ReportGenerator:
                     "temperature": temperature,
                     "top_p": top_p,
                     "top_k": top_k,
-                    "frequency_penalty": frequency_penalty,
-                    "presence_penalty": presence_penalty,
-                    "repeat_penalty": repeat_penalty
                 }
             }
 
-            # 僅在有設定時添加 seed 參數
+            # 只在有數值時添加這些參數，避免某些模型不支援的問題
+            if frequency_penalty is not None:
+                data["options"]["frequency_penalty"] = frequency_penalty
+
+            if presence_penalty is not None:
+                data["options"]["presence_penalty"] = presence_penalty
+
+            if repeat_penalty is not None:
+                data["options"]["repeat_penalty"] = repeat_penalty
+
             if seed is not None:
                 data["options"]["seed"] = seed
 
             # 儲存 LLM 請求參數用於調試
             debug_dir = self.app_config.get('REPORT_DEBUG_FOLDER')
-            os.makedirs(debug_dir, exist_ok=True)
-            debug_file = os.path.join(debug_dir, f"report_{self.report_id}_request.json")
-            with open(debug_file, 'w', encoding='utf-8') as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
+            if debug_dir:
+                debug_file = os.path.join(debug_dir, f"report_{self.report_id}_request.json")
+                with open(debug_file, 'w', encoding='utf-8') as f:
+                    json.dump(data, f, ensure_ascii=False, indent=2)
 
             # 發送請求並串流接收生成內容
             self.reporter.update_step_progress(30, f"正在使用 {self.ollama_model} 生成報告")
@@ -331,7 +345,7 @@ class ReportGenerator:
                                 chunk = json_line["response"]
                                 content += chunk
 
-                                # 更新訊息佇列，用於 WebSocket 推送
+                                # 更新訊息佇列，用於實時串流到前端
                                 self.message_queue.put(chunk)
 
                                 # 更新 token 計數和進度
@@ -351,9 +365,15 @@ class ReportGenerator:
                             logger.warning(f"無法解析 JSON: {line}")
 
                 # 儲存 LLM 響應用於調試
-                debug_response_file = os.path.join(debug_dir, f"report_{self.report_id}_response.json")
-                with open(debug_response_file, 'w', encoding='utf-8') as f:
-                    json.dump(response_chunks, f, ensure_ascii=False, indent=2)
+                if debug_dir:
+                    debug_response_file = os.path.join(debug_dir, f"report_{self.report_id}_response.json")
+                    with open(debug_response_file, 'w', encoding='utf-8') as f:
+                        json.dump(response_chunks, f, ensure_ascii=False, indent=2)
+
+                    # 同時保存完整生成的內容
+                    content_file = os.path.join(debug_dir, f"report_{self.report_id}_content.md")
+                    with open(content_file, 'w', encoding='utf-8') as f:
+                        f.write(content)
 
                 self.reporter.update_step_progress(90, "報告生成完成")
 
@@ -372,6 +392,20 @@ class ReportGenerator:
             logger.error(f"生成報告內容時發生錯誤: {e}")
             raise ReportGeneratorException(f"生成報告內容時發生錯誤: {e}")
 
+    def get_messages(self, timeout=0.1):
+        """
+        從消息隊列中獲取一條生成消息
+
+        Args:
+            timeout: 獲取消息的超時時間（秒）
+
+        Returns:
+            獲取到的消息，如果隊列為空則返回 None
+        """
+        try:
+            return self.message_queue.get(timeout=timeout)
+        except queue.Empty:
+            return None
 
     def _save_report(self, content):
         """儲存報告為 Markdown 和 PDF 格式"""

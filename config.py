@@ -33,6 +33,7 @@ OUTPUT_FOLDER = os.path.join(BASE_DIR, 'outputs')
 TRANSCRIPT_FOLDER = os.path.join(OUTPUT_FOLDER, 'transcripts')
 VISUALIZATION_FOLDER = os.path.join(OUTPUT_FOLDER, 'visualizations')
 REPORT_FOLDER = os.path.join(OUTPUT_FOLDER, 'reports')
+REPORT_DEBUG_FOLDER = os.path.join(OUTPUT_FOLDER, 'debug')  # 調試資訊儲存目錄
 
 # 複製一份可視化圖表到靜態目錄以便網頁顯示
 STATIC_OUTPUT_FOLDER = os.path.join(BASE_DIR, 'static', 'outputs')
@@ -50,6 +51,15 @@ DEFAULT_SPEAKER_MIN = 2  # 最小說話者數量
 DEFAULT_SPEAKER_MAX = 10  # 最大說話者數量
 DEFAULT_VISUALIZE = True  # 是否生成說話者分割的可視化圖表
 
+# LLM 生成參數配置
+DEFAULT_TEMPERATURE = 0.7      # 溫度參數，控制隨機性 (0.0-1.0)，值越低越確定性
+DEFAULT_TOP_P = 0.9            # 頂部 P 採樣，控制結果多樣性 (0.0-1.0)
+DEFAULT_TOP_K = 40             # 頂部 K 採樣，限制候選詞彙數量
+DEFAULT_FREQUENCY_PENALTY = 0.0  # 頻率懲罰，減少重複 (-2.0-2.0)
+DEFAULT_PRESENCE_PENALTY = 0.0   # 存在懲罰，減少主題重複 (-2.0-2.0)
+DEFAULT_REPEAT_PENALTY = 1.1     # 重複懲罰，專用於減少文字重複
+DEFAULT_SEED = None              # 隨機種子，確保結果可重複
+
 # HuggingFace token 用於下載分割模型
 # 可以通過環境變數設定
 DEFAULT_HF_TOKEN = os.environ.get('HF_TOKEN') or "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"
@@ -59,26 +69,15 @@ DEFAULT_OLLAMA_HOST = os.environ.get('OLLAMA_HOST') or "192.168.1.14"  # Ollama 
 DEFAULT_OLLAMA_PORT = os.environ.get('OLLAMA_PORT') or "11434"  # Ollama 端口
 DEFAULT_OLLAMA_MODEL = os.environ.get('OLLAMA_MODEL') or "phi4:14b"  # 預設模型
 
-# 報告生成核心生成參數
-DEFAULT_TEMPERATURE = 0.7      # 溫度參數，控制隨機性 (0.0-1.0)，值越低越確定性
-DEFAULT_TOP_P = 0.9            # 頂部 P 採樣，控制結果多樣性 (0.0-1.0)
-DEFAULT_TOP_K = 40             # 頂部 K 採樣，限制候選詞彙數量
-DEFAULT_FREQUENCY_PENALTY = 0.0  # 頻率懲罰，減少重複 (-2.0-2.0)
-DEFAULT_PRESENCE_PENALTY = 0.0   # 存在懲罰，減少主題重複 (-2.0-2.0)
-DEFAULT_REPEAT_PENALTY = 1.1     # 重複懲罰，專用於減少文字重複
-DEFAULT_SEED = None              # 隨機種子，確保結果可重複
-
 # 報告生成配置
-MAX_REPORT_TOKENS = 4000      # 報告生成的最大 token 數量
+MAX_REPORT_TOKENS = 4000  # 報告生成的最大 token 數量
 REPORT_STREAM_CHUNK_SIZE = 50  # 每次從 LLM 獲取的 token 數量
 REPORT_FORMATS = ["markdown", "pdf"]  # 支援的報告格式
 
-# 調試輸出目錄
-REPORT_DEBUG_FOLDER = os.path.join(OUTPUT_FOLDER, 'llm_input')  # 儲存 LLM 請求/響應的調試資料
-
-
 # 系統提示詞（用於 LLM 生成報告）
 DEFAULT_SYSTEM_PROMPT = """
+你是一個專業的會議紀錄助手。你的任務是根據會議逐字稿生成一份結構良好的會議紀錄。
+
 請按照以下格式生成報告：
 1. 會議標題：基於逐字稿內容推斷一個合適的標題
 2. 會議時間：根據逐字稿提供的時間資訊
