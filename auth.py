@@ -95,9 +95,14 @@ def dashboard():
     # 這裡將來會顯示用戶的音訊檔案和報告
     from models.db_models import AudioFile, Transcript, Report
 
-    audio_files = AudioFile.query.filter_by(user_id=current_user.id).order_by(AudioFile.created_at.desc()).limit(5)
+    # 獲取最新的5個音訊檔案
+    audio_files = AudioFile.query.filter_by(user_id=current_user.id).order_by(AudioFile.created_at.desc()).limit(5).all()
+
+    # 獲取用戶的所有轉錄記錄
     transcripts = Transcript.query.join(AudioFile).filter(AudioFile.user_id == current_user.id).all()
-    reports = Report.query.filter_by(user_id=current_user.id).order_by(Report.created_at.desc()).limit(5)
+
+    # 獲取最新的5個報告
+    reports = Report.query.filter_by(user_id=current_user.id).order_by(Report.created_at.desc()).limit(5).all()
 
     return render_template('dashboard.html',
                           name=current_user.name,

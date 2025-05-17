@@ -1,16 +1,12 @@
-# 修改 app.py 添加 Markdown 過濾器
-
 """
 Flask 應用入口點
 初始化 Flask 應用，設定藍圖 (Blueprints)，配置基本設定
 """
 from flask import Flask, redirect, url_for
-from markupsafe import Markup
 from flask_login import LoginManager, current_user
 import os
 from pathlib import Path
 import datetime
-import markdown
 
 # 從共享模組導入 db 和 migrate
 from extensions import db, migrate
@@ -49,11 +45,6 @@ def create_app(test_config=None):
     login_manager = LoginManager()
     login_manager.login_view = 'auth.login'
     login_manager.init_app(app)
-
-    # 註冊 Markdown 過濾器
-    @app.template_filter('markdown')
-    def render_markdown(text):
-        return Markup(markdown.markdown(text))
 
     # 從模型中引入 User 類並設定用戶加載函數
     from models.user import User
@@ -95,6 +86,33 @@ def create_app(test_config=None):
         return {
             'now': datetime.datetime.now()
         }
+
+    # 添加自定義過濾器
+    @app.template_filter('filesizeformat')
+    def filesizeformat_filter(value):
+        """將檔案大小轉換為可讀格式"""
+        if not isinstance(value, (int, float)):
+            return value
+
+        units = ['B', 'KB', 'MB', 'GB', 'TB']
+        size = float(value)
+        unit_index = 0
+
+        while size >= 1024.0 and unit_index < len(units) - 1:
+            size /= 1024.0
+            unit_index += 1
+
+        return f"{size:.1f} {units[unit_index]}"
+
+    # 添加 markdown 過濾器
+    @app.template_filter('markdown')
+    def markdown_filter(text):
+        """轉換 Markdown 為 HTML"""
+        try:
+            import markdown
+            return markdown.markdown(text)
+        except ImportError:
+            return text
 
     # 創建數據庫表格
     with app.app_context():

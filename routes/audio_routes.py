@@ -334,7 +334,7 @@ def save_transcript(transcript_id):
         transcript.csv_path = edited_csv_path
         transcript.txt_path = edited_txt_path
         transcript.status = TranscriptStatus.EDITED
-        transcript.updated_at = datetime.datetime.utcnow()
+        transcript.updated_at = datetime.datetime.now(datetime.UTC)
 
         # 更新字數統計
         transcript.word_count = sum(len(str(row['text']).split()) for row in rows)

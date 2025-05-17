@@ -84,7 +84,8 @@ class ProgressReporter:
                 audio_file.progress = overall_progress
                 if self.current_step == self.total_steps and self.step_progress == 100:
                     audio_file.status = ProcessingStatus.COMPLETED
-                    audio_file.processed_at = datetime.datetime.utcnow()
+                    audio_file.processed_at = datetime.datetime.now(datetime.UTC)
+
                 db.session.commit()
         except Exception as e:
             logger.error(f"更新進度到資料庫時發生錯誤: {e}")
@@ -177,7 +178,8 @@ class AudioProcessor:
 
             # 更新完成狀態
             self.audio_file.status = ProcessingStatus.COMPLETED
-            self.audio_file.processed_at = datetime.datetime.utcnow()
+            self.audio_file.processed_at = datetime.datetime.now(datetime.UTC)
+
             db.session.commit()
 
             # 回報處理完成

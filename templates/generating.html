@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block title %}處理中 - {{ config.SITE_TITLE }}{% endblock %}
+
+{% block page_title %}處理中{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">處理進度</h5>
+            </div>
+            <div class="card-body text-center">
+                <div class="mb-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+
+                <h4 id="statusText">{{ report.status.value }}</h4>
+                <div class="progress mb-3">
+                    <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated"
+                        role="progressbar" aria-valuenow="{{ report.progress }}" aria-valuemin="0"
+                        aria-valuemax="100" style="width: {{ report.progress }}%">
+                    </div>
+                </div>
+                <p id="progressPercent" class="mb-4">{{ report.progress | int }}%</p>
+
+                <div id="message" class="text-muted">
+                    處理需要一些時間，請耐心等待...
+                </div>
+            </div>
+            <div class="card-footer">
+                <div class="d-flex justify-content-between">
+                    <a href="{{ url_for('auth.dashboard') }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-1"></i> 返回儀表板
+                    </a>
+                    <div id="actionButtons"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // 檢查進度
+    document.addEventListener('DOMContentLoaded', function() {
+        // 初始化進度檢查
+        const reportId = {{ report.id }};
+        const initialStatus = "{{ report.status.value }}";
+        const initialProgress = {{ report.progress }};
+
+        checkGeneratingStatus(reportId, initialStatus, initialProgress);
+    });
+
+    function checkGeneratingStatus(reportId, status, progress) {
+        if (status !== 'completed' && status !== 'failed') {
+            setTimeout(function() {
+                fetch(`/generating_status/${reportId}/check`)
+                    .then(response => response.json())
+                    .then(data => {
+                        // 更新進度
+                        updateProgress(data.progress);
+
+                        if (data.status === 'completed') {
+                            // 完成後重定向
+                            window.location.href = data.redirect_url;
+                        } else if (data.status === 'failed') {
+                            // 顯示錯誤
+                            document.getElementById('statusText').textContent = '生成失敗';
+                            document.getElementById('message').innerHTML = `<div class="alert alert-danger">${data.message}</div>`;
+                            document.getElementById('actionButtons').innerHTML =
+                                `<a href="${data.redirect_url}" class="btn btn-primary">返回</a>`;
+                        } else {
+                            // 繼續檢查
+                            checkGeneratingStatus(reportId, data.status, data.progress);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('檢查進度時發生錯誤:', error);
+                        // 發生錯誤時也繼續嘗試
+                        checkGeneratingStatus(reportId, status, progress);
+                    });
+            }, 1000);
+        }
+    }
+
+    function updateProgress(progress) {
+        const progressBar = document.getElementById('progressBar');
+        const progressPercent = document.getElementById('progressPercent');
+
+        progressBar.style.width = progress + '%';
+        progressBar.setAttribute('aria-valuenow', progress);
+        progressPercent.textContent = Math.round(progress) + '%';
+    }
+</script>
+{% endblock %}

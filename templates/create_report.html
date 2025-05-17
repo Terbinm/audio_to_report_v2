@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}創建報告 - {{ config.SITE_TITLE }}{% endblock %}
+
+{% block page_title %}創建會議報告{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">生成會議報告</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-4">
+                    <h6>轉錄資訊</h6>
+                    <div class="d-flex align-items-center p-3 bg-light rounded mb-3">
+                        <i class="fas fa-file-alt fa-2x text-primary me-3"></i>
+                        <div>
+                            <h6 class="mb-1">{{ audio_file.original_filename }}</h6>
+                            <div class="small text-muted">
+                                <span>時長: {{ transcript.total_duration | default('N/A') }} 秒</span> |
+                                <span>說話者: {{ transcript.speakers_count }}</span> |
+                                <span>字數: {{ transcript.word_count }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <form action="{{ url_for('report.create_report', transcript_id=transcript.id) }}" method="post">
+                    <div class="mb-3">
+                        <label for="title" class="form-label">報告標題</label>
+                        <input type="text" class="form-control" id="title" name="title"
+                            value="會議報告 - {{ audio_file.original_filename.split('.')[0] }}" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="ollama_model" class="form-label">生成模型</label>
+                        <select class="form-select" id="ollama_model" name="ollama_model">
+                            {% for model in ollama_models %}
+                            <option value="{{ model }}" {% if model == default_ollama_model %}selected{% endif %}>{{ model }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">選擇用於生成報告的 LLM 模型</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="system_prompt" class="form-label">系統提示詞</label>
+                        <textarea class="form-control" id="system_prompt" name="system_prompt" rows="8">{{ default_system_prompt }}</textarea>
+                        <div class="form-text">用於指導 LLM 生成報告的提示詞</div>
+                    </div>
+
+                    <div class="text-center mt-4">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="fas fa-robot me-2"></i> 開始生成報告
+                        </button>
+                    </div>
+                </form>
+            </div>
+            <div class="card-footer text-center">
+                <div class="text-muted small">
+                    生成過程可能需要幾分鐘，請耐心等待
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

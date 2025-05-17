@@ -66,11 +66,13 @@ def register_post():
         return redirect(url_for('auth.register'))
 
     # 創建新用戶
-    new_user = User(
-        email=email,
-        name=name,
-        password=generate_password_hash(password, method='pbkdf2:sha256')
-    )
+    new_user = User()
+
+    # new_user = User(
+    #     email=email,
+    #     name=name,
+    #     password=generate_password_hash(password, method='pbkdf2:sha256')
+    # )
 
     # 添加用戶到數據庫
     db.session.add(new_user)

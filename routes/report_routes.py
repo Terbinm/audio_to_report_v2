@@ -9,10 +9,11 @@ from models.db_models import Report, Transcript, AudioFile, ReportStatus
 from processors.report_generator import create_report_generator
 from app import db
 import os
-import json
 import datetime
 import requests
 import logging
+from xhtml2pdf import pisa
+import markdown
 
 # 創建藍圖
 report = Blueprint('report', __name__)
@@ -36,7 +37,7 @@ def get_available_ollama_models():
         ollama_port = current_app.config.get('DEFAULT_OLLAMA_PORT', '11434')
 
         # 構建請求 URL
-        url = f"http://{ollama_host}:{ollama_port}/api/tags"
+        url = f"https://{ollama_host}:{ollama_port}/api/tags"
 
         # 發送請求
         response = requests.get(url, timeout=3)
@@ -192,7 +193,7 @@ def stream_report(report_id):
     """串流獲取報告生成內容 (用於 SSE)"""
     # 這個函數實際上只返回一個靜態 JSON
     # 實際的串流處理在前端通過 WebSocket 或 Server-Sent Events 實現
-    report_entry = Report.query.filter_by(id=report_id, user_id=current_user.id).first_or_404()
+    Report.query.filter_by(id=report_id, user_id=current_user.id).first_or_404()
 
     # 創建報告生成器 (但不啟動生成)
     generator = create_report_generator(report_id)
@@ -285,57 +286,62 @@ def save_report(report_id):
 
         # 更新報告記錄
         report_entry.markdown_path = edited_path
-        report_entry.updated_at = datetime.datetime.utcnow()
+        report_entry.updated_at = datetime.datetime.now()
         db.session.commit()
 
         # 嘗試重新生成 PDF (如果支援)
         try:
-            if report_entry.pdf_path:
-                edited_pdf_path = report_entry.pdf_path.replace('.pdf', '_edited.pdf')
+            edited_pdf_path = report_entry.pdf_path.replace('.pdf', '_edited.pdf') if report_entry.pdf_path else os.path.join(
+                current_app.config['REPORT_FOLDER'],
+                f"{os.path.basename(edited_path).split('.')[0]}.pdf"
+            )
 
-                # 嘗試使用 weasyprint 重新生成 PDF
-                try:
-                    from weasyprint import HTML
-                    import markdown
+            # 使用 xhtml2pdf 生成 PDF
+            try:
 
-                    # 將 Markdown 轉換為 HTML
-                    html_content = markdown.markdown(markdown_content)
+                # 將 Markdown 轉換為 HTML
+                html_content = markdown.markdown(markdown_content)
 
-                    # 添加基本的 CSS 樣式
-                    styled_html = f"""
-                    <!DOCTYPE html>
-                    <html>
-                    <head>
-                        <meta charset="UTF-8">
-                        <title>{report_entry.title}</title>
-                        <style>
-                            body {{ font-family: Arial, sans-serif; margin: 2cm; }}
-                            h1 {{ color: #333366; }}
-                            h2 {{ color: #333366; border-bottom: 1px solid #ddd; padding-bottom: 5px; }}
-                            table {{ border-collapse: collapse; width: 100%; margin: 15px 0; }}
-                            th, td {{ border: 1px solid #ddd; padding: 8px; }}
-                            th {{ background-color: #f2f2f2; }}
-                            @page {{ size: A4; margin: 2cm; }}
-                        </style>
-                    </head>
-                    <body>
-                        {html_content}
-                    </body>
-                    </html>
-                    """
+                # 添加基本的 CSS 樣式
+                styled_html = f"""
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="UTF-8">
+                    <title>{report_entry.title}</title>
+                    <style>
+                        body {{ font-family: Arial, sans-serif; margin: 2cm; }}
+                        h1 {{ color: #333366; }}
+                        h2 {{ color: #333366; border-bottom: 1px solid #ddd; padding-bottom: 5px; }}
+                        table {{ border-collapse: collapse; width: 100%; margin: 15px 0; }}
+                        th, td {{ border: 1px solid #ddd; padding: 8px; }}
+                        th {{ background-color: #f2f2f2; }}
+                    </style>
+                </head>
+                <body>
+                    {html_content}
+                </body>
+                </html>
+                """
 
-                    # 生成 PDF
-                    HTML(string=styled_html).write_pdf(edited_pdf_path)
+                # 生成 PDF
+                with open(edited_pdf_path, "w+b") as result_file:
+                    pdf_status = pisa.CreatePDF(styled_html, dest=result_file)
 
+                if not pdf_status.err:
                     # 更新 PDF 路徑
                     report_entry.pdf_path = edited_pdf_path
                     db.session.commit()
+                    logger.info(f"已儲存 PDF 報告到: {edited_pdf_path}")
+                else:
+                    logger.error(f"生成 PDF 時發生錯誤: {pdf_status.err}")
 
-                except ImportError:
-                    logger.warning("未找到 weasyprint 套件，無法重新生成 PDF")
+            except ImportError:
+                logger.warning("未找到 xhtml2pdf 套件，無法生成 PDF 報告")
 
         except Exception as e:
             flash(f'重新生成 PDF 時發生錯誤: {e}', 'warning')
+            logger.error(f"生成 PDF 報告時發生錯誤: {e}")
 
         flash('報告已成功保存', 'success')
         return redirect(url_for('report.view_report', report_id=report_id))
