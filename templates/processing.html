@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+
+{% block title %}處理中 - {{ config.SITE_TITLE }}{% endblock %}
+
+{% block page_title %}處理音訊中{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">處理進度</h5>
+            </div>
+            <div class="card-body text-center">
+                <div class="mb-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+                
+                <h4 id="statusText">
+                    {% if audio_file.status.value == 'pending' %}
+                    等待處理...
+                    {% elif audio_file.status.value == 'processing' %}
+                    處理中...
+                    {% elif audio_file.status.value == 'completed' %}
+                    處理完成
+                    {% elif audio_file.status.value == 'failed' %}
+                    處理失敗
+                    {% else %}
+                    {{ audio_file.status.value }}
+                    {% endif %}
+                </h4>
+                <div class="progress mb-3">
+                    <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated" 
+                        role="progressbar" aria-valuenow="{{ audio_file.progress }}" aria-valuemin="0" 
+                        aria-valuemax="100" style="width: {{ audio_file.progress }}%">
+                    </div>
+                </div>
+                <p id="progressPercent" class="mb-4">{{ audio_file.progress | int }}%</p>
+                
+                <div id="message" class="text-muted">
+                    處理音訊需要一些時間，請耐心等待...
+                </div>
+            </div>
+            <div class="card-footer">
+                <div class="d-flex justify-content-between">
+                    <a href="{{ url_for('auth.dashboard') }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-1"></i> 返回儀表板
+                    </a>
+                    <div id="actionButtons">
+                        {% if audio_file.status.value == 'completed' %}
+                        <a href="{{ url_for('audio.view_transcript', transcript_id=transcript.id if transcript else 0) }}" class="btn btn-success">
+                            <i class="fas fa-eye me-1"></i> 查看轉錄結果
+                        </a>
+                        {% elif audio_file.status.value == 'failed' %}
+                        <div class="alert alert-danger">
+                            處理失敗: {{ audio_file.error_message }}
+                        </div>
+                        <a href="{{ url_for('audio.upload_form') }}" class="btn btn-primary">
+                            <i class="fas fa-upload me-1"></i> 重新上傳
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // 檢查進度
+    document.addEventListener('DOMContentLoaded', function() {
+        // 初始化進度檢查
+        const audioId = {{ audio_file.id }};
+        const initialStatus = "{{ audio_file.status.value }}";
+        const initialProgress = {{ audio_file.progress }};
+        
+        // 如果狀態是 pending 或 processing，啟動進度檢查
+        if (initialStatus === 'pending' || initialStatus === 'processing') {
+            checkProcessingStatus(audioId);
+        }
+    });
+    
+    function checkProcessingStatus(audioId) {
+        setTimeout(function() {
+            fetch(`/processing_status/${audioId}/check`)
+                .then(response => response.json())
+                .then(data => {
+                    // 更新進度
+                    const progressBar = document.getElementById('progressBar');
+                    const progressPercent = document.getElementById('progressPercent');
+                    
+                    if (data.progress !== undefined) {
+                        progressBar.style.width = data.progress + '%';
+                        progressBar.setAttribute('aria-valuenow', data.progress);
+                        progressPercent.textContent = Math.round(data.progress) + '%';
+                    }
+                    
+                    // 更新狀態
+                    const statusText = document.getElementById('statusText');
+                    if (data.message) {
+                        statusText.textContent = data.message;
+                    }
+                    
+                    if (data.status === 'completed') {
+                        // 完成後重定向
+                        window.location.href = data.redirect_url;
+                    } else if (data.status === 'failed') {
+                        // 顯示錯誤
+                        document.getElementById('message').innerHTML = `<div class="alert alert-danger">${data.message}</div>`;
+                        document.getElementById('actionButtons').innerHTML = 
+                            `<a href="${data.redirect_url}" class="btn btn-primary">返回</a>`;
+                    } else {
+                        // 繼續檢查
+                        checkProcessingStatus(audioId);
+                    }
+                })
+                .catch(error => {
+                    console.error('檢查進度時發生錯誤:', error);
+                    // 發生錯誤時也繼續嘗試
+                    checkProcessingStatus(audioId);
+                });
+        }, 1000);
+    }
+</script>
+{% endblock %}

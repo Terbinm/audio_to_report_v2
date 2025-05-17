@@ -174,7 +174,7 @@ def stream_report(report_id):
 def list_reports():
     """列出用戶的所有報告"""
     reports = Report.query.filter_by(user_id=current_user.id).all()
-    return render_template('reports.html', reports=reports)
+    return render_template('reports_list.html', reports=reports)
 
 
 @report.route('/report/<int:report_id>')

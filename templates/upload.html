@@ -31,7 +31,9 @@
                                     最大檔案大小: {{ (config.MAX_CONTENT_LENGTH / 1024 / 1024) | int }} MB
                                 </p>
                             </div>
-                            <input type="file" name="audio_file" id="audio_file" class="upload-input" accept="{{ '.'+ext for ext in config.ALLOWED_EXTENSIONS | join(',.')}}" required>
+                            <input type="file" name="audio_file" id="audio_file" class="upload-input"
+                                   accept="{{ '.' + config.ALLOWED_EXTENSIONS | join(',.') }}"
+                                   required>
                         </div>
                         <div class="selected-file mt-2" style="display: none;">
                             <div class="d-flex align-items-center">

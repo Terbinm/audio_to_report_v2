@@ -135,8 +135,18 @@ class AudioProcessor:
         self.audio_file.progress = 0
         db.session.commit()
 
+        # 獲取應用上下文和當前音訊檔案ID
+        app = current_app._get_current_object()
+        audio_file_id = self.audio_file_id
+
         # 啟動處理線程
-        process_thread = threading.Thread(target=self._process_audio_file)
+        def run_with_app_context():
+            with app.app_context():
+                # 在新的線程中重新獲取音訊檔案對象
+                processor = AudioProcessor(audio_file_id)
+                processor._process_audio_file()
+
+        process_thread = threading.Thread(target=run_with_app_context)
         process_thread.daemon = True
         process_thread.start()
 
