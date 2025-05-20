@@ -160,6 +160,51 @@ class ReportGenerator:
         return True
 
 
+    def get_messages(self, timeout=0.1):
+        """
+        從消息隊列中獲取一條生成消息
+
+        Args:
+            timeout: 獲取消息的超時時間（秒）
+
+        Returns:
+            獲取到的消息，如果隊列為空則返回 None
+        """
+        try:
+            # 確保使用正確的全局隊列
+            queue_to_use = getattr(current_app, self.message_queue_name, self.message_queue)
+            return queue_to_use.get(block=False)  # 嘗試非阻塞獲取
+        except (queue.Empty, AttributeError):
+            return None
+
+
+    def get_all_messages(self):
+        """
+        從消息隊列中獲取所有可用的生成消息
+
+        Returns:
+            list: 獲取到的所有消息列表，如果隊列為空則返回空列表
+        """
+        messages = []
+        try:
+            # 確保使用正確的全局隊列
+            queue_to_use = getattr(current_app, self.message_queue_name, self.message_queue)
+
+            # 不斷嘗試獲取消息直到隊列為空
+            while True:
+                try:
+                    message = queue_to_use.get(block=False)  # 非阻塞獲取
+                    if message:
+                        messages.append(message)
+                except queue.Empty:
+                    break  # 隊列為空時退出循環
+
+        except (queue.Empty, AttributeError) as e:
+            logger.warning(f"獲取消息時出現問題: {e}")
+
+        return messages
+
+
     def _generate_report(self):
         """生成報告的主要方法"""
         try:
@@ -405,22 +450,6 @@ class ReportGenerator:
             logger.error(f"生成報告內容時發生錯誤: {e}")
             raise ReportGeneratorException(f"生成報告內容時發生錯誤: {e}")
 
-    def get_messages(self, timeout=0.1):
-        """
-        從消息隊列中獲取一條生成消息
-
-        Args:
-            timeout: 獲取消息的超時時間（秒）
-
-        Returns:
-            獲取到的消息，如果隊列為空則返回 None
-        """
-        try:
-            # 確保使用正確的全局隊列
-            queue_to_use = getattr(current_app, self.message_queue_name, self.message_queue)
-            return queue_to_use.get(block=False)  # 嘗試非阻塞獲取
-        except (queue.Empty, AttributeError):
-            return None
 
     def _save_report(self, content):
         """儲存報告為 Markdown 和 PDF 格式"""

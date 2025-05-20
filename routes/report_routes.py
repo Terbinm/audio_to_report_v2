@@ -262,40 +262,62 @@ def stream_report(report_id):
     generator = create_report_generator(report_id)
 
     def generate_events():
-        """生成 SSE 事件"""
+        """生成 SSE 事件，優化版本一次取出所有剩餘訊息"""
         # 使用應用上下文
         with app.app_context():
             while True:
                 try:
-                    # 嘗試獲取一條訊息
-                    message = generator.get_messages(timeout=0.1)
-
-                    if message:
-                        # 將消息格式化為 SSE 事件
-                        yield f"data: {json.dumps({'chunk': message})}\n\n"
-                        logger.info(f"發送內容片段：{message[:20] if message else 'None'}...")
-                    elif report_entry.status == ReportStatus.COMPLETED:
+                    # 檢查報告狀態，若已完成或失敗則退出
+                    current_report = Report.query.get(report_id)
+                    if current_report.status == ReportStatus.COMPLETED:
                         # 如果報告已完成生成，發送結束事件
                         yield "event: done\ndata: done\n\n"
                         break
-                    elif report_entry.status == ReportStatus.FAILED:
+                    elif current_report.status == ReportStatus.FAILED:
                         # 如果報告生成失敗，發送錯誤事件
-                        yield f"event: error\ndata: {report_entry.error_message}\n\n"
+                        yield f"event: error\ndata: {current_report.error_message or '未知錯誤'}\n\n"
                         break
+
+                    # 一次性取出所有目前可用的訊息
+                    messages = []
+                    try:
+                        # 取出訊息隊列中所有可用訊息
+                        queue_to_use = getattr(current_app, f"report_queue_{report_id}", None)
+                        if queue_to_use is None:
+                            logger.warning(f"找不到報告 {report_id} 的訊息隊列")
+                            queue_to_use = generator.message_queue
+
+                        # 嘗試從隊列獲取所有可用訊息
+                        while True:
+                            try:
+                                message = queue_to_use.get(block=False)
+                                if message:
+                                    messages.append(message)
+                            except queue.Empty:
+                                break
+                    except Exception as queue_err:
+                        logger.error(f"從隊列獲取訊息時出錯: {queue_err}")
+
+                    # 如果有取得訊息，則批次發送
+                    if messages:
+                        combined_message = ''.join(messages)
+                        logger.info(f"發送內容片段：長度 {len(combined_message)} 字符")
+                        yield f"data: {json.dumps({'chunk': combined_message})}\n\n"
                     else:
                         # 保持連接活躍
                         yield f"data: {json.dumps({'heartbeat': True})}\n\n"
+
+                    # 短暫暫停，避免過於頻繁的檢查
+                    time.sleep(0.2)
 
                 except Exception as e:
                     logger.error(f"生成事件時發生錯誤: {e}")
                     yield f"event: error\ndata: 生成事件時發生錯誤: {str(e)}\n\n"
                     break
 
-                # 暫停一小段時間，避免過於頻繁的檢查
-                time.sleep(0.2)
-
     # 返回串流響應
     return Response(generate_events(), mimetype='text/event-stream')
+
 
 @report.route('/reports')
 @login_required
